@@ -2,8 +2,8 @@ const STORAGE_KEYS = {
   prompt: "prompt-saver:last-prompt",
   mode: "prompt-saver:mode",
   theme: "prompt-saver:theme",
-  apiKey: "prompt-saver:groq-api-key",
-  model: "prompt-saver:groq-model",
+  apiKey: "prompt-saver:gemini-api-key",
+  model: "prompt-saver:gemini-model",
 };
 
 const SAMPLE_PROMPT = `בנו לוח בקרה פנימי מוכן לפרודקשן לטיפול באירועי תקלות.
@@ -270,122 +270,130 @@ function setTheme(theme) {
   localStorage.setItem(STORAGE_KEYS.theme, isDark ? "dark" : "light");
 }
 
-const JSON_SCHEMA_INSTRUCTION = `Return your response as a JSON object with exactly these fields:
-- optimizedPrompt: string — the compressed, directly usable prompt
-- preservedConstraints: array of strings — critical constraints that were kept
-- compressedOrMerged: array of strings — what was tightened or combined
-- intentionallyDropped: array of strings — what was safely removed (empty array if nothing was dropped)`.trim();
+const PROMPT_SCHEMA = {
+  type: "object",
+  properties: {
+    optimizedPrompt: { type: "string" },
+    preservedConstraints: { type: "array", items: { type: "string" } },
+    compressedOrMerged: { type: "array", items: { type: "string" } },
+    intentionallyDropped: { type: "array", items: { type: "string" } },
+  },
+  required: ["optimizedPrompt", "preservedConstraints", "compressedOrMerged", "intentionallyDropped"],
+};
 
-function buildGroqMessages(prompt, mode) {
-  const userContent = `Compression mode: ${mode}
-Mode guidance: ${MODE_GUIDANCE[mode] || MODE_GUIDANCE.balanced}
-
-Task:
-Transform the input into a shorter prompt for a coding agent.
-Preserve every critical instruction.
-Preserve important product and UX guidance when it shapes quality or implementation.
-Reduce token-heavy repetition.
-Do not turn it into a generic summary.
-
-Meaning-loss check:
-- Keep edge cases, warnings, tradeoffs, final recommendation asks, and "not X but Y" contrasts when they change the answer.
-- If an example matters, compress it instead of deleting it.
-- If unsure whether something is important, keep it.
-
-Input prompt:
-"""${prompt}"""`;
-
-  return [
-    { role: "system", content: `${SYSTEM_INSTRUCTION}
-
-${JSON_SCHEMA_INSTRUCTION}` },
-    { role: "user", content: userContent },
-  ];
+function robustParseJson(text) {
+  if (!text || !text.trim()) return null;
+  const t = text.trim();
+  try { return JSON.parse(t); } catch {}
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) { try { return JSON.parse(fence[1].trim()); } catch {} }
+  const obj = t.match(/\{[\s\S]*\}/);
+  if (obj) { try { return JSON.parse(obj[0]); } catch {} }
+  for (const s of ['"}', '"}]}', '"]}']) {
+    try { const r = JSON.parse(t + s); if (r && r.optimizedPrompt) return r; } catch {}
+  }
+  return null;
 }
 
-function parseGroqResponse(payload) {
-  const text = (payload?.choices?.[0]?.message?.content || "").trim();
+function buildGeminiRequest(prompt, mode) {
+  const modeGuidance = MODE_GUIDANCE[mode] || MODE_GUIDANCE.balanced;
+  const lines = [
+    "Compression mode: " + mode,
+    "Mode guidance: " + modeGuidance,
+    "",
+    "Task: Transform the input into a shorter prompt for a coding agent.",
+    "Preserve every critical instruction, stack, flows, edge cases, deliverables.",
+    "Reduce only repetition and filler.",
+    "",
+    "Input prompt:",
+    '"""',
+    prompt,
+    '"""',
+  ];
+  return {
+    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+    generationConfig: {
+      temperature: 0.15,
+      topP: 0.9,
+      maxOutputTokens: 8192,
+      responseMimeType: "application/json",
+      responseJsonSchema: PROMPT_SCHEMA,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+    contents: [{ parts: [{ text: lines.join("\n") }] }],
+  };
+}
 
-  if (!text) {
-    throw new Error("Groq החזיר תגובה ריקה.");
-  }
+function parseGeminiResponse(payload) {
+  const candidate = payload && payload.candidates && payload.candidates[0];
+  const parts = candidate && candidate.content && candidate.content.parts;
+  const text = parts ? parts.map(function(p) { return p.text || ""; }).join("").trim() : "";
 
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error("Groq החזיר תגובה חתוכה. נסו פרומפט קצר יותר או מצב דחיסה אגרסיבי.");
-  }
-
-  if (!parsed?.optimizedPrompt) {
-    throw new Error("Groq החזיר מבנה תשובה לא תקין.");
-  }
+  if (!text) throw new Error("ג׳מיני החזיר תגובה ריקה.");
+  const parsed = robustParseJson(text);
+  if (!parsed || !parsed.optimizedPrompt) throw new Error("ג׳מיני החזיר מבנה לא תקין. נסו שוב.");
 
   return {
     optimizedPrompt: parsed.optimizedPrompt.trim(),
-    preservedConstraints: Array.isArray(parsed.preservedConstraints)
-      ? parsed.preservedConstraints.filter(Boolean).slice(0, 8)
-      : [],
-    compressedOrMerged: Array.isArray(parsed.compressedOrMerged)
-      ? parsed.compressedOrMerged.filter(Boolean).slice(0, 8)
-      : [],
-    intentionallyDropped: Array.isArray(parsed.intentionallyDropped)
-      ? parsed.intentionallyDropped.filter(Boolean).slice(0, 8)
-      : [],
+    preservedConstraints: Array.isArray(parsed.preservedConstraints) ? parsed.preservedConstraints.filter(Boolean).slice(0, 8) : [],
+    compressedOrMerged: Array.isArray(parsed.compressedOrMerged) ? parsed.compressedOrMerged.filter(Boolean).slice(0, 8) : [],
+    intentionallyDropped: Array.isArray(parsed.intentionallyDropped) ? parsed.intentionallyDropped.filter(Boolean).slice(0, 8) : [],
   };
 }
 
-function mapGroqError(status, payload) {
-  const apiMessage = payload?.error?.message || "";
+function mapGeminiError(status, payload) {
+  const apiMessage = (payload && payload.error && payload.error.message) || "";
   const lower = apiMessage.toLowerCase();
-
-  if (status === 401) {
-    return "Groq דחה את מפתח ה־API. בדקו את המפתח ונסו שוב.";
+  if (status === 401 || status === 403 || lower.includes("api key")) {
+    return "ג׳מיני דחה את מפתח ה־API. בדקו את המפתח ב־aistudio.google.com/apikey ונסו שוב.";
   }
-
-  if (status === 429 || lower.includes("rate limit") || lower.includes("quota")) {
-    const retryMatch = apiMessage.match(/retry after (\d+)/i);
-    const hint = retryMatch ? ` נסו שוב בעוד ${retryMatch[1]} שניות.` : " נסו שוב בעוד רגע.";
-    return `Groq הגביל את הבקשה.${hint}`;
+  if (status === 429 || lower.includes("quota") || lower.includes("rate limit") || lower.includes("resource_exhausted")) {
+    const retryMatch = apiMessage.match(/retry in ([\d.]+)s/i);
+    const sec = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : null;
+    const freeTier = lower.includes("free_tier") ? " הגעתם למגבלת המכסה החינמית." : "";
+    return sec
+      ? "ג׳מיני הגביל את הבקשה." + freeTier + " נסו שוב בעוד " + sec + " שניות."
+      : "ג׳מיני הגביל את הבקשה." + freeTier + " נסו שוב בעוד רגע.";
   }
-
-  if (status === 503 || lower.includes("overloaded") || lower.includes("unavailable")) {
-    return "Groq עמוס כרגע. נסו שוב בעוד רגע.";
+  if (status === 503 || lower.includes("high demand") || lower.includes("overloaded")) {
+    return "ג׳מיני עמוס כרגע. נסו שוב בעוד רגע.";
   }
-
-  return apiMessage || "הבקשה אל Groq נכשלה.";
+  return apiMessage || "הבקשה אל ג׳מיני נכשלה.";
 }
 
-async function callGroq(prompt, mode) {
+async function callGemini(prompt, mode) {
   const apiKey = elements.apiKeyInput.value.trim();
-  const selectedModel = elements.modelInput.value.trim() || config.groq.defaultModel;
-
-  const response = await fetch(`${config.groq.endpointBase}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: selectedModel,
-      messages: buildGroqMessages(prompt, mode),
-      response_format: { type: "json_object" },
-      temperature: 0.15,
-      max_tokens: 6000,
-    }),
+  const userModel = elements.modelInput.value.trim() || config.defaultModel;
+  const modelsToTry = [userModel].concat(config.fallbackModels || []).filter(function(m, i, arr) {
+    return m && arr.indexOf(m) === i;
   });
 
-  const payload = await response.json();
+  let lastError;
 
-  if (!response.ok) {
-    throw new Error(mapGroqError(response.status, payload));
+  for (let i = 0; i < modelsToTry.length; i++) {
+    const model = modelsToTry[i];
+    const response = await fetch(config.endpointBase + "/models/" + model + ":generateContent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify(buildGeminiRequest(prompt, mode)),
+    });
+
+    const payload = await response.json();
+
+    if (response.ok) {
+      return Object.assign({}, parseGeminiResponse(payload), { selectedModel: model, usedFallbackModel: i > 0 });
+    }
+
+    lastError = new Error(mapGeminiError(response.status, payload));
+    const rawLower = JSON.stringify(payload || {}).toLowerCase();
+    const tryFallback = response.status === 404 || response.status === 503
+      || rawLower.includes("not found") || rawLower.includes("high demand") || rawLower.includes("overloaded");
+
+    if (tryFallback && i < modelsToTry.length - 1) continue;
+    throw lastError;
   }
 
-  return {
-    ...parseGroqResponse(payload),
-    selectedModel,
-    usedFallbackModel: false,
-  };
+  throw lastError || new Error("הבקשה אל ג׳מיני נכשלה.");
 }
 
 
@@ -398,7 +406,7 @@ async function compressPrompt() {
   }
 
   if (!apiKey) {
-    setStatus("צריך להזין מפתח Groq לפני שמקצרים.", "error");
+    setStatus("צריך להזין מפתח Gemini לפני שמקצרים.", "error");
     return;
   }
 
@@ -406,7 +414,7 @@ async function compressPrompt() {
   setStatus("מקצר את הפרומפט עם Groq...", "");
 
   try {
-    const result = await callGroq(prompt, state.mode);
+    const result = await callGemini(prompt, state.mode);
     result.estimatedTokenReduction = buildReductionEstimate(prompt, result.optimizedPrompt);
     result.qualityReport = {
       removedRepetition: Boolean(result.compressedOrMerged?.length),
@@ -467,7 +475,7 @@ function clearAll() {
 function initialize() {
   elements.promptInput.value = localStorage.getItem(STORAGE_KEYS.prompt) || "";
   elements.apiKeyInput.value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
-  elements.modelInput.value = localStorage.getItem(STORAGE_KEYS.model) || config.groq.defaultModel;
+  elements.modelInput.value = localStorage.getItem(STORAGE_KEYS.model) || config.defaultModel;
   state.mode = localStorage.getItem(STORAGE_KEYS.mode) || "balanced";
   setTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
 
