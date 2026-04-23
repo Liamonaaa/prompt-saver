@@ -387,8 +387,13 @@ function mapGeminiError(status, payload) {
     return "מודל ג׳מיני שהוגדר אינו זמין. נסו מודל Flash חלופי.";
   }
 
-  if (status === 429 || message.includes("rate limit") || message.includes("resource_exhausted")) {
-    return "ג׳מיני מגביל כרגע את קצב הבקשות. נסו שוב בעוד רגע.";
+  if (status === 429 || message.includes("rate limit") || message.includes("resource_exhausted") || message.includes("quota exceeded")) {
+    const retryMatch = (apiMessage || "").match(/retry in ([\d.]+)s/i);
+    const retrySec = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : null;
+    const quotaNote = (apiMessage || "").includes("free_tier") ? " הגעתם למגבלת המכסה החינמית." : "";
+    return retrySec
+      ? `ג׳מיני הגביל את הבקשה.${quotaNote} נסו שוב בעוד ${retrySec} שניות.`
+      : `ג׳מיני הגביל את הבקשה.${quotaNote} נסו שוב בעוד רגע.`;
   }
 
   if (status === 503 || (apiMessage || "").toLowerCase().includes("high demand") || (apiMessage || "").toLowerCase().includes("overloaded")) {

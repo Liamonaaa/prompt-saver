@@ -60,11 +60,16 @@ function normalizeGeminiError(error, modelName) {
     );
   }
 
-  if (statusCode === 429 || message.includes("resource_exhausted") || message.includes("rate limit")) {
+  if (statusCode === 429 || message.includes("resource_exhausted") || message.includes("rate limit") || message.includes("quota exceeded")) {
+    const retryMatch = message.match(/retry in ([\d.]+)s/i);
+    const retrySec = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : null;
+    const isFreeTier = message.includes("free_tier");
+    const retryHint = retrySec ? ` Retry in ${retrySec} seconds.` : " Wait a moment and try again.";
+    const quotaHint = isFreeTier ? " Free tier quota reached." : "";
     return new AppError(
       429,
       "rate_limited",
-      "Gemini is rate limiting this request right now. Wait a moment and try again.",
+      `Gemini is rate limiting this request.${quotaHint}${retryHint}`,
       { modelName },
     );
   }
