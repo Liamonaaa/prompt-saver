@@ -35,9 +35,13 @@ async function compressPrompt({ prompt, mode }) {
     review = reviewCompressionResult(analysis, result);
   }
 
+  const qualityReport = result.compressionFailed
+    ? { removedRepetition: false, importantNuancePreserved: true, compressionLevel: "None — fallback" }
+    : buildQualityReport({ mode, result, review });
+
   return {
     ...result,
-    qualityReport: buildQualityReport({ mode, result, review }),
+    qualityReport,
     estimatedTokenReduction: buildReductionEstimate(prompt, result.optimizedPrompt),
   };
 }

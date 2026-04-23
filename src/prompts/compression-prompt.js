@@ -1,10 +1,11 @@
+const { robustParseJson } = require("../lib/parse-json");
+
 const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
     optimizedPrompt: {
       type: "string",
-      description:
-        "A directly usable prompt for Codex or Claude Code that preserves the task goal and critical requirements.",
+      description: "A directly usable prompt for Codex or Claude Code that preserves the task goal and critical requirements.",
     },
     preservedConstraints: {
       type: "array",
@@ -18,85 +19,82 @@ const RESPONSE_SCHEMA = {
     },
     intentionallyDropped: {
       type: "array",
-      description:
-        "Items intentionally dropped because they were clearly redundant, repetitive, or non-material. Use an empty array if nothing meaningful was dropped.",
+      description: "Items intentionally dropped because they were clearly redundant, repetitive, or non-material. Use an empty array if nothing meaningful was dropped.",
       items: { type: "string" },
     },
   },
-  required: [
-    "optimizedPrompt",
-    "preservedConstraints",
-    "compressedOrMerged",
-    "intentionallyDropped",
-  ],
-  propertyOrdering: [
-    "optimizedPrompt",
-    "preservedConstraints",
-    "compressedOrMerged",
-    "intentionallyDropped",
-  ],
+  required: ["optimizedPrompt", "preservedConstraints", "compressedOrMerged", "intentionallyDropped"],
+  propertyOrdering: ["optimizedPrompt", "preservedConstraints", "compressedOrMerged", "intentionallyDropped"],
 };
 
 const SYSTEM_INSTRUCTION = `
 You are Prompt Saver, a prompt optimization engine for coding agents.
 
-This is not generic summarization.
-Your job is to produce the shortest safe prompt, not the shortest possible prompt.
+This is not summarization. Your job is to produce the shortest safe prompt, not the shortest prompt.
 
-Primary objective:
-- Reduce token-heavy repetition while preserving the task's real intent, implementation guidance, product direction, and critical constraints.
+STEP 1 — Detect structure before compressing.
+Identify which of these are present:
+- Goal: what is being built or evaluated
+- Stack: languages, frameworks, runtime, DB, infra
+- Architecture: patterns, module boundaries, data flow
+- Flows: user flows, system flows, state transitions
+- Roles: user types, permissions, admin vs. end-user distinctions
+- Pricing / billing: tiers, limits, payment logic
+- Timing / scheduling: cron, delays, SLA, deadlines
+- Status logic: state machines, transitions, error states
+- Data model: entities, relationships, schema constraints
+- Admin requirements: dashboards, audit logs, RBAC
+- Edge cases: explicit examples, failure modes, exceptions
+- Testing / security: test coverage, auth, validation, audit
+- Deliverables: what must be produced or returned
+
+Preserve every category you find. Never drop a whole category silently.
+
+STEP 2 — Compress safely.
+Remove: repeated wording, duplicate warnings, filler, restated instructions.
+Merge: multiple instructions that say the same thing → one stronger instruction.
+Keep: any wording that changes expected behavior, quality, or correctness.
+For complex prompts, output compact structured sections — not one dense paragraph.
+Prefer slightly longer output over losing an important requirement.
+
+GUARD — Before returning, verify:
+- Every major section from Step 1 is still present.
+- Every explicit flow is still present.
+- Every hard constraint is still present (must/never/do-not/required).
+- Every edge case example is still present in compact form.
+- Every deliverable is still present.
+If any are missing, restore them before returning JSON.
 
 Core rules:
-- Preserve the core task goal.
-- Preserve all hard constraints, do-not-touch rules, technical limits, output requirements, language requirements, and safety-critical instructions.
-- Preserve instructions about what the product should feel like or what it must not become when those instructions materially affect the result.
-- If an instruction shapes product quality, UX quality, implementation direction, or evaluation criteria, treat it as important unless it is clearly redundant.
-- If you are unsure whether something is important, keep it.
-- Never silently weaken a constraint when merging wording.
-- Never rewrite the prompt into a high-level summary.
-- Never add new requirements that were not present in the source.
+- Never rewrite into a high-level summary.
+- Never silently weaken a constraint when merging.
+- Never add new requirements.
+- When in doubt, keep it.
 
-Priority layers:
-1. Core goal
-2. Hard constraints
-3. Non-negotiable product and UX requirements
-4. Technical constraints
-5. Output and delivery requirements
-6. Secondary preferences
-7. Repetitive or compressible wording
-
-Important preservation rule:
-- Do not treat descriptive product and UX guidance as fluff just because it is qualitative.
-- Instructions such as "do not make this feel generic", "not just responsive", "premium or polished feel", "intentional mobile UX", "refined micro-interactions", "operationally efficient dashboard", "app-like feel", and similar product-shaping guidance should usually survive in compressed form.
-- Preserve distinctions like "mobile-first", "not just a responsive shrink", "admin UX should feel operationally efficient", and "interaction details matter" when they materially affect implementation quality.
-
-Compression guidance:
-- Remove duplicate warnings, repeated examples, filler wording, and verbose restatements.
-- Merge repeated instructions into one stronger and clearer instruction.
-- Keep wording compact, but do not flatten meaningful nuance.
-- Prefer concise preservation over deletion for important UX or product guidance.
-- Preserve "what this should not become" instructions when they prevent generic or degraded output.
+What to remove:
+- Repeated emphasis ("Do not do X. Do not do X. Really, do not do X." → "Do not do X.")
+- Repeated adjectives and filler words.
+- Duplicate phrasing that adds no new information.
 
 Output requirements:
 - Return valid JSON matching the provided schema.
-- "preservedConstraints" should list the most important things that were kept.
-- "compressedOrMerged" should say what was tightened or combined.
-- "intentionallyDropped" should list only content that was clearly safe to remove. If nothing meaningful was dropped, return an empty array.
+- "preservedConstraints": list the most important things kept.
+- "compressedOrMerged": what was tightened or combined.
+- "intentionallyDropped": only clearly redundant content. Empty array if nothing dropped.
 `.trim();
 
 const MODE_GUIDANCE = {
   safe: `
-Preserve nuance aggressively.
-Keep product-feel, UX quality, and implementation-shaping guidance unless it is obviously repetitive.
-Prefer a slightly longer result over losing meaningful intent.
+Preserve nuance aggressively. Keep everything unless it is obviously word-for-word duplicate.
+Prefer a slightly longer result over any doubt.
   `.trim(),
   balanced: `
-Reduce repetition firmly, but keep any requirement that changes the expected product quality, UX quality, implementation direction, or review standard.
-This mode should optimize for shortest safe prompt, not shortest output.
+Remove repetition firmly. Keep any requirement that changes expected behavior, quality, or correctness.
+Optimize for shortest safe prompt, not shortest output.
   `.trim(),
   aggressive: `
-Maximize reduction more boldly, but still preserve anything that materially affects correctness, product feel, UX expectations, implementation quality, or delivery requirements.
-If a qualitative instruction could change the final product meaningfully, keep it in compact form.
+Maximize reduction. Still preserve anything that affects correctness, product feel, deliverables, or hard constraints.
+When unsure whether something is critical, keep it in compact form.
   `.trim(),
 };
 
@@ -107,38 +105,32 @@ function buildCompressionContents(prompt, mode, analysisSummary = "", reviewHint
 Compression mode: ${selectedMode}
 Mode guidance: ${MODE_GUIDANCE[selectedMode]}
 
-Task:
-Transform the input into a shorter prompt for a coding agent.
-Preserve every critical instruction.
-Preserve important product and UX guidance when it shapes the final result.
-Reduce token-heavy repetition.
-Do not turn it into a generic summary.
+Protected segments (treat as high-priority):
+${analysisSummary || "No additional protected-content notes."}
 
-Evaluation checklist before removing anything:
-- Does it affect the real task goal?
-- Is it a hard constraint or technical limitation?
-- Does it shape product feel, UX expectations, mobile behavior, animation quality, dashboard usability, or implementation direction?
-- Does it describe what the result must not become?
-- Would removing it make the result more generic, lower quality, or easier to misinterpret?
-
-If yes or maybe, keep it.
-
-Protected-content pass:
-Treat the following source segments as high-priority unless they are clearly duplicated by stronger wording:
-${analysisSummary || "No protected-content notes supplied."}
-
-Meaning-loss check:
-- Confirm every requested deliverable still exists.
-- Confirm important nuance, tradeoffs, risk language, and edge-case examples still survive in compact form.
-- Confirm contrast instructions such as "not X, but Y" still shape the output.
-- Confirm final recommendation requests or opinionated-decision asks were preserved when present.
-
-If the first draft drops or weakens any of those, rewrite it before returning JSON.
-
-${reviewHint ? `Retry guidance:\n${reviewHint}\n` : ""}
+${reviewHint ? `Retry guidance — these were missing in the previous attempt:\n${reviewHint}\n` : ""}
 
 Input prompt:
-"""${prompt}"""
+"""
+${prompt}
+"""
+  `.trim();
+}
+
+function buildSimpleCompressionContents(prompt, mode) {
+  return `
+Compress this prompt. Mode: ${mode}.
+
+Rules:
+- Remove repetition and filler only.
+- Keep all hard requirements, constraints, flows, deliverables, stack, edge cases, and technical details.
+- Prefer slightly longer output over losing any requirement.
+- Return JSON: { "optimizedPrompt": "...", "preservedConstraints": [], "compressedOrMerged": [], "intentionallyDropped": [] }
+
+Input:
+"""
+${prompt}
+"""
   `.trim();
 }
 
@@ -154,15 +146,16 @@ function parseCompressionResponse(response) {
         ? response.text()
         : "";
 
-  let parsed;
-  try {
-    parsed = response?.parsed || JSON.parse(rawText);
-  } catch {
-    throw new Error("Gemini returned a truncated response. Try a shorter prompt or use Aggressive mode.");
+  const parsed = response?.parsed || robustParseJson(rawText);
+
+  if (!parsed) {
+    console.error("[parseCompressionResponse] All parse strategies failed. Raw text (first 500 chars):", rawText.slice(0, 500));
+    throw new Error("The model returned a response that could not be parsed as JSON. Try again or use a shorter prompt.");
   }
 
-  if (!parsed?.optimizedPrompt || typeof parsed.optimizedPrompt !== "string") {
-    throw new Error("Gemini returned an invalid compression payload.");
+  if (!parsed.optimizedPrompt || typeof parsed.optimizedPrompt !== "string") {
+    console.error("[parseCompressionResponse] Parsed object missing optimizedPrompt:", JSON.stringify(parsed).slice(0, 300));
+    throw new Error("The model returned an incomplete response (missing optimizedPrompt). Try again.");
   }
 
   return {
@@ -177,5 +170,6 @@ module.exports = {
   RESPONSE_SCHEMA,
   SYSTEM_INSTRUCTION,
   buildCompressionContents,
+  buildSimpleCompressionContents,
   parseCompressionResponse,
 };

@@ -190,7 +190,7 @@ async function compressPrompt() {
   }
 
   setLoading(true);
-  setStatus("מקצר את הפרומפט עם ג׳מיני...", "");
+  setStatus("מקצר פרומפט...", "");
 
   try {
     const response = await fetch("/api/compress", {
@@ -212,11 +212,15 @@ async function compressPrompt() {
 
     renderResult(payload.result);
 
-    const modelBadge = payload.result.usedFallbackModel
-      ? ` נעשה שימוש במודל גיבוי: ${payload.result.selectedModel}.`
-      : ` נעשה שימוש במודל ${payload.result.selectedModel}.`;
-
-    setStatus(`הקיצור הושלם.${modelBadge}`, "success");
+    if (payload.result.compressionFailed) {
+      setStatus("הקיצור נכשל — הפרומפט המקורי נשמר. נסו שוב או בחרו מצב אגרסיבי פחות.", "error");
+    } else {
+      const modelBadge = payload.result.usedFallbackModel
+        ? ` נעשה שימוש במודל גיבוי: ${payload.result.selectedModel}.`
+        : ` נעשה שימוש במודל ${payload.result.selectedModel}.`;
+      const retryNote = payload.result.usedSimpleFallback ? " (ניסיון שני עם פרומפט פשוט יותר)" : "";
+      setStatus(`הקיצור הושלם.${retryNote}${modelBadge}`, "success");
+    }
   } catch (error) {
     setStatus(error.message || "הקיצור נכשל.", "error");
   } finally {
