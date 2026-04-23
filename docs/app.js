@@ -32,16 +32,16 @@ const SAMPLE_PROMPT = `בנו לוח בקרה פנימי מוכן לפרודקש
 אם משהו נראה מעורפל אבל עלול להיות קריטי, עדיף להשאיר אותו מאשר להסיר אותו.`;
 
 const PROMPT_SCHEMA = {
-  type: "OBJECT",
+  type: "object",
   properties: {
-    optimizedPrompt: { type: "STRING" },
+    optimizedPrompt: { type: "string" },
     preservedConstraints: {
-      type: "ARRAY",
-      items: { type: "STRING" },
+      type: "array",
+      items: { type: "string" },
     },
     compressedOrMerged: {
-      type: "ARRAY",
-      items: { type: "STRING" },
+      type: "array",
+      items: { type: "string" },
     },
   },
   required: ["optimizedPrompt", "preservedConstraints", "compressedOrMerged"],
@@ -264,7 +264,7 @@ function buildRequestBody(prompt, mode) {
       topP: 0.9,
       maxOutputTokens: 4096,
       responseMimeType: "application/json",
-      responseSchema: PROMPT_SCHEMA,
+      responseJsonSchema: PROMPT_SCHEMA,
       thinkingConfig: {
         thinkingBudget: 0,
       },
@@ -318,6 +318,11 @@ function parseGeminiResponse(payload) {
 
 function mapGeminiError(status, payload) {
   const message = JSON.stringify(payload || {}).toLowerCase();
+  const apiMessage = payload?.error?.message;
+
+  if (apiMessage && status >= 400 && status < 500) {
+    return apiMessage;
+  }
 
   if (status === 401 || status === 403 || message.includes("api key")) {
     return "ג׳מיני דחה את מפתח ה־API. בדקו את המפתח ונסו שוב.";
@@ -332,10 +337,10 @@ function mapGeminiError(status, payload) {
   }
 
   if (status >= 500) {
-    return "ג׳מיני לא זמין כרגע. נסו שוב בעוד רגע.";
+    return apiMessage || "ג׳מיני לא זמין כרגע. נסו שוב בעוד רגע.";
   }
 
-  return payload?.error?.message || "הבקשה אל ג׳מיני נכשלה.";
+  return apiMessage || "הבקשה אל ג׳מיני נכשלה.";
 }
 
 async function callGemini(prompt, mode) {
