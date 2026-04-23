@@ -1,5 +1,5 @@
-const DEFAULT_MODEL = "gemini-2.5-flash";
-const DEFAULT_FALLBACK_MODELS = ["gemini-2.5-flash-lite"];
+const DEFAULT_MODEL = "gemini-2.0-flash";
+const DEFAULT_FALLBACK_MODELS = ["gemini-1.5-flash"];
 const DEFAULT_TIMEOUT_MS = 20_000;
 
 function parseList(value) {
