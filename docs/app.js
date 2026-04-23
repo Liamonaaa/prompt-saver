@@ -391,6 +391,10 @@ function mapGeminiError(status, payload) {
     return "ג׳מיני מגביל כרגע את קצב הבקשות. נסו שוב בעוד רגע.";
   }
 
+  if (status === 503 || (apiMessage || "").toLowerCase().includes("high demand") || (apiMessage || "").toLowerCase().includes("overloaded")) {
+    return "ג׳מיני עמוס כרגע. מנסה מודל חלופי או נסו שוב בעוד רגע.";
+  }
+
   if (status >= 500) {
     return apiMessage || "ג׳מיני לא זמין כרגע. נסו שוב בעוד רגע.";
   }
@@ -430,8 +434,11 @@ async function callGemini(prompt, mode) {
     const rawMessage = JSON.stringify(payload || {}).toLowerCase();
     const modelUnavailable =
       response.status === 404 ||
+      response.status === 503 ||
       rawMessage.includes("unsupported model") ||
-      rawMessage.includes("not found");
+      rawMessage.includes("not found") ||
+      rawMessage.includes("high demand") ||
+      rawMessage.includes("overloaded");
 
     if (modelUnavailable && index < modelsToTry.length - 1) {
       continue;

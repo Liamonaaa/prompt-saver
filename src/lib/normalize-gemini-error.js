@@ -25,8 +25,11 @@ function isModelUnavailableError(error) {
 
   return (
     statusCode === 404 ||
+    statusCode === 503 ||
     message.includes("not found") ||
     message.includes("unsupported model") ||
+    message.includes("high demand") ||
+    message.includes("overloaded") ||
     message.includes("model") && message.includes("not available")
   );
 }
