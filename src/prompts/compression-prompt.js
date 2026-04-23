@@ -100,7 +100,7 @@ If a qualitative instruction could change the final product meaningfully, keep i
   `.trim(),
 };
 
-function buildCompressionContents(prompt, mode) {
+function buildCompressionContents(prompt, mode, analysisSummary = "", reviewHint = "") {
   const selectedMode = MODE_GUIDANCE[mode] ? mode : "balanced";
 
   return `
@@ -122,6 +122,20 @@ Evaluation checklist before removing anything:
 - Would removing it make the result more generic, lower quality, or easier to misinterpret?
 
 If yes or maybe, keep it.
+
+Protected-content pass:
+Treat the following source segments as high-priority unless they are clearly duplicated by stronger wording:
+${analysisSummary || "No protected-content notes supplied."}
+
+Meaning-loss check:
+- Confirm every requested deliverable still exists.
+- Confirm important nuance, tradeoffs, risk language, and edge-case examples still survive in compact form.
+- Confirm contrast instructions such as "not X, but Y" still shape the output.
+- Confirm final recommendation requests or opinionated-decision asks were preserved when present.
+
+If the first draft drops or weakens any of those, rewrite it before returning JSON.
+
+${reviewHint ? `Retry guidance:\n${reviewHint}\n` : ""}
 
 Input prompt:
 """${prompt}"""

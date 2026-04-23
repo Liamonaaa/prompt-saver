@@ -30,13 +30,13 @@ const SAMPLE_PROMPT = `בנו לוח בקרה פנימי מוכן לפרודקש
 אם משהו נראה מעורפל אבל עלול להיות קריטי, עדיף להשאיר אותו מאשר להסיר אותו.`;
 
 const MODE_LABELS = {
-  safe: "שמרני",
+  safe: "קל",
   balanced: "מאוזן",
   aggressive: "אגרסיבי",
 };
 
 const state = {
-  mode: "safe",
+  mode: "balanced",
   loading: false,
   lastResult: null,
 };
@@ -53,6 +53,7 @@ const elements = {
   copyButton: document.getElementById("copy-button"),
   downloadButton: document.getElementById("download-button"),
   compareMetrics: document.getElementById("compare-metrics"),
+  qualityReport: document.getElementById("quality-report"),
   preservedList: document.getElementById("preserved-list"),
   compressedList: document.getElementById("compressed-list"),
   droppedList: document.getElementById("dropped-list"),
@@ -127,6 +128,27 @@ function renderCompare(result) {
   `;
 }
 
+function renderQualityReport(result) {
+  if (!result?.qualityReport || !result?.estimatedTokenReduction) {
+    elements.qualityReport.classList.add("empty-card");
+    elements.qualityReport.innerHTML = `
+      <div><dt>הוסרה חזרה</dt><dd>עדיין אין תוצאה.</dd></div>
+      <div><dt>נשמרה ניואנסיות</dt><dd>עדיין אין תוצאה.</dd></div>
+      <div><dt>רמת דחיסה</dt><dd>מאוזן</dd></div>
+      <div><dt>הערכת חיסכון</dt><dd>0%</dd></div>
+    `;
+    return;
+  }
+
+  elements.qualityReport.classList.remove("empty-card");
+  elements.qualityReport.innerHTML = `
+    <div><dt>הוסרה חזרה</dt><dd>${result.qualityReport.removedRepetition ? "כן" : "לא"}</dd></div>
+    <div><dt>נשמרה ניואנסיות</dt><dd>${result.qualityReport.importantNuancePreserved ? "כן" : "לא"}</dd></div>
+    <div><dt>רמת דחיסה</dt><dd>${result.qualityReport.compressionLevel}</dd></div>
+    <div><dt>הערכת חיסכון</dt><dd>${result.estimatedTokenReduction.estimatedReductionPercent}%</dd></div>
+  `;
+}
+
 function setLoading(isLoading) {
   state.loading = isLoading;
   elements.compressButton.disabled = isLoading || !elements.promptInput.value.trim();
@@ -142,6 +164,7 @@ function renderResult(result) {
 
   renderCounts();
   renderCompare(result);
+  renderQualityReport(result);
   renderList(elements.preservedList, result?.preservedConstraints, "עדיין לא זוהו אילוצים.");
   renderList(elements.compressedList, result?.compressedOrMerged, "עדיין אין פירוט על הדחיסה.");
   renderList(elements.droppedList, result?.intentionallyDropped, "לא הושמט שום דבר מהותי.");
@@ -239,7 +262,7 @@ function clearAll() {
 
 function initialize() {
   elements.promptInput.value = localStorage.getItem(STORAGE_KEYS.prompt) || "";
-  state.mode = localStorage.getItem(STORAGE_KEYS.mode) || "safe";
+  state.mode = localStorage.getItem(STORAGE_KEYS.mode) || "balanced";
   setTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
 
   renderMode();

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "test": "node scripts/regression-test.js",
     "smoke-test": "node scripts/smoke-test.js"
   },
   "keywords": [

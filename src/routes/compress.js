@@ -6,10 +6,16 @@ const router = express.Router();
 const MODES = new Set(["safe", "balanced", "aggressive"]);
 const MAX_PROMPT_LENGTH = 60_000;
 
+function normalizeMode(value) {
+  return value === "light" ? "safe" : value;
+}
+
 router.post("/", async (req, res, next) => {
   try {
     const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
-    const mode = typeof req.body?.mode === "string" ? req.body.mode.trim().toLowerCase() : "balanced";
+    const requestedMode =
+      typeof req.body?.mode === "string" ? req.body.mode.trim().toLowerCase() : "balanced";
+    const mode = normalizeMode(requestedMode);
 
     if (!prompt) {
       throw new AppError(400, "missing_prompt", "Paste a prompt before trying to compress it.");

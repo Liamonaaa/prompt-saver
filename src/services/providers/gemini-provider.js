@@ -44,7 +44,7 @@ function buildConfigForModel(modelName) {
   return config;
 }
 
-async function compress({ prompt, mode }) {
+async function compress({ prompt, mode, analysisSummary, reviewHint }) {
   const modelsToTry = getModelCandidates();
   const ai = getClient();
   let lastError;
@@ -55,7 +55,7 @@ async function compress({ prompt, mode }) {
     try {
       const response = await ai.models.generateContent({
         model: modelName,
-        contents: buildCompressionContents(prompt, mode),
+        contents: buildCompressionContents(prompt, mode, analysisSummary, reviewHint),
         config: buildConfigForModel(modelName),
         httpOptions: {
           timeout: geminiConfig.timeoutMs,

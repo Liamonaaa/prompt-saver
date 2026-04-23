@@ -43,25 +43,36 @@ const PROMPT_SCHEMA = {
       type: "array",
       items: { type: "string" },
     },
+    intentionallyDropped: {
+      type: "array",
+      items: { type: "string" },
+    },
   },
-  required: ["optimizedPrompt", "preservedConstraints", "compressedOrMerged"],
-  propertyOrdering: ["optimizedPrompt", "preservedConstraints", "compressedOrMerged"],
+  required: ["optimizedPrompt", "preservedConstraints", "compressedOrMerged", "intentionallyDropped"],
+  propertyOrdering: [
+    "optimizedPrompt",
+    "preservedConstraints",
+    "compressedOrMerged",
+    "intentionallyDropped",
+  ],
 };
 
 const SYSTEM_INSTRUCTION = `You are Prompt Saver, a prompt optimization engine for coding agents.
 
 This is not generic summarization.
-Your job is to compress prompts while preserving the task's real intent and every critical constraint.
+Your job is to produce the shortest safe prompt, not the shortest possible prompt.
 
 Non-negotiable rules:
 - Preserve the core task goal.
 - Preserve all hard constraints.
 - Preserve all do-not-touch rules.
 - Preserve technical limitations, output requirements, language requirements, and safety-critical instructions.
+- Preserve product and UX guidance when it materially shapes implementation quality, product feel, mobile behavior, interaction quality, realism, tradeoffs, or evaluation criteria.
+- Preserve instructions about what the result must not become when they guard against generic or degraded output.
 - If you are unsure whether something is critical, keep it.
 - Never silently drop constraints that could change behavior or break the result.
 - Merge duplicate instructions when possible, but do not weaken them.
-- Remove repetition, filler wording, repeated warnings, and redundant examples unless the example is essential.
+- Remove repetition, filler wording, repeated warnings, and redundant examples unless the example affects edge cases, business logic, operational risk, or recommendation quality.
 - Keep the optimized prompt directly usable in Codex or Claude Code.
 - Do not write a generic summary.
 - Do not add new requirements not present in the source.
@@ -69,11 +80,16 @@ Non-negotiable rules:
 Compression priority:
 1. Core task goal
 2. Hard constraints
-3. What must not be changed
+3. Non-negotiable product and UX requirements
 4. Technical constraints
 5. Output and delivery requirements
-6. Secondary design preferences
-7. Nice-to-have details
+6. Secondary preferences
+7. Repetitive or compressible wording
+
+Important preservation rule:
+- Do not treat descriptive product and UX guidance as fluff just because it is qualitative.
+- Preserve tradeoff instructions, realism, messy-reality details, customer or operator behavior, operational friction, risk examples, and final recommendation asks when they shape the answer.
+- If an example matters, compress it into grouped form instead of deleting it.
 
 Return valid JSON matching the provided schema.`;
 
@@ -85,7 +101,7 @@ const MODE_GUIDANCE = {
 };
 
 const MODE_LABELS = {
-  safe: "שמרני",
+  safe: "קל",
   balanced: "מאוזן",
   aggressive: "אגרסיבי",
 };
@@ -93,7 +109,7 @@ const MODE_LABELS = {
 const config = window.PROMPT_SAVER_CONFIG;
 
 const state = {
-  mode: "safe",
+  mode: "balanced",
   loading: false,
   lastResult: null,
 };
@@ -110,6 +126,7 @@ const elements = {
   copyButton: document.getElementById("copy-button"),
   downloadButton: document.getElementById("download-button"),
   compareMetrics: document.getElementById("compare-metrics"),
+  qualityReport: document.getElementById("quality-report"),
   preservedList: document.getElementById("preserved-list"),
   compressedList: document.getElementById("compressed-list"),
   droppedList: document.getElementById("dropped-list"),
@@ -212,6 +229,27 @@ function renderCompare(result) {
   `;
 }
 
+function renderQualityReport(result) {
+  if (!result?.qualityReport || !result?.estimatedTokenReduction) {
+    elements.qualityReport.classList.add("empty-card");
+    elements.qualityReport.innerHTML = `
+      <div><dt>הוסרה חזרה</dt><dd>עדיין אין תוצאה.</dd></div>
+      <div><dt>נשמרה ניואנסיות</dt><dd>עדיין אין תוצאה.</dd></div>
+      <div><dt>רמת דחיסה</dt><dd>מאוזן</dd></div>
+      <div><dt>הערכת חיסכון</dt><dd>0%</dd></div>
+    `;
+    return;
+  }
+
+  elements.qualityReport.classList.remove("empty-card");
+  elements.qualityReport.innerHTML = `
+    <div><dt>הוסרה חזרה</dt><dd>${result.qualityReport.removedRepetition ? "כן" : "לא"}</dd></div>
+    <div><dt>נשמרה ניואנסיות</dt><dd>${result.qualityReport.importantNuancePreserved ? "כן" : "לא"}</dd></div>
+    <div><dt>רמת דחיסה</dt><dd>${result.qualityReport.compressionLevel}</dd></div>
+    <div><dt>הערכת חיסכון</dt><dd>${result.estimatedTokenReduction.estimatedReductionPercent}%</dd></div>
+  `;
+}
+
 function setLoading(isLoading) {
   state.loading = isLoading;
   const disabled = isLoading || !elements.promptInput.value.trim();
@@ -227,6 +265,7 @@ function renderResult(result) {
   elements.downloadButton.disabled = !result?.optimizedPrompt;
   renderCounts();
   renderCompare(result);
+  renderQualityReport(result);
   renderList(elements.preservedList, result?.preservedConstraints, "עדיין לא זוהו אילוצים.");
   renderList(elements.compressedList, result?.compressedOrMerged, "עדיין אין פירוט על הדחיסה.");
   renderList(elements.droppedList, result?.intentionallyDropped, "לא הושמט שום דבר מהותי.");
@@ -281,8 +320,14 @@ Mode guidance: ${MODE_GUIDANCE[mode] || MODE_GUIDANCE.safe}
 Task:
 Transform the input into a shorter prompt for a coding agent.
 Preserve every critical instruction.
+Preserve important product and UX guidance when it shapes quality or implementation.
 Reduce token-heavy repetition.
 Do not turn it into a generic summary.
+
+Meaning-loss check:
+- Keep edge cases, warnings, tradeoffs, final recommendation asks, and "not X but Y" contrasts when they change the answer.
+- If an example matters, compress it instead of deleting it.
+- If unsure whether something is important, keep it.
 
 Input prompt:
 """${prompt}"""`,
@@ -314,6 +359,9 @@ function parseGeminiResponse(payload) {
       : [],
     compressedOrMerged: Array.isArray(parsed.compressedOrMerged)
       ? parsed.compressedOrMerged.filter(Boolean).slice(0, 8)
+      : [],
+    intentionallyDropped: Array.isArray(parsed.intentionallyDropped)
+      ? parsed.intentionallyDropped.filter(Boolean).slice(0, 8)
       : [],
   };
 }
@@ -409,6 +457,12 @@ async function compressPrompt() {
   try {
     const result = await callGemini(prompt, state.mode);
     result.estimatedTokenReduction = buildReductionEstimate(prompt, result.optimizedPrompt);
+    result.qualityReport = {
+      removedRepetition: Boolean(result.compressedOrMerged?.length),
+      importantNuancePreserved: Boolean(result.preservedConstraints?.length),
+      compressionLevel:
+        state.mode === "safe" ? "Light" : state.mode === "aggressive" ? "Aggressive" : "Balanced",
+    };
     renderResult(result);
 
     const suffix = result.usedFallbackModel
@@ -463,7 +517,7 @@ function initialize() {
   elements.promptInput.value = localStorage.getItem(STORAGE_KEYS.prompt) || "";
   elements.apiKeyInput.value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
   elements.modelInput.value = localStorage.getItem(STORAGE_KEYS.model) || config.defaultModel;
-  state.mode = localStorage.getItem(STORAGE_KEYS.mode) || "safe";
+  state.mode = localStorage.getItem(STORAGE_KEYS.mode) || "balanced";
   setTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
 
   renderMode();

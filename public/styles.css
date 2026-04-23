@@ -266,11 +266,22 @@ h1 {
   margin-bottom: 0.8rem;
 }
 
+.quality-report,
 .metric-list {
   display: grid;
   gap: 0.8rem;
 }
 
+.quality-report {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--panel) 82%, var(--surface) 18%);
+}
+
+.quality-report div,
 .metric-list div {
   display: flex;
   justify-content: space-between;
@@ -278,11 +289,13 @@ h1 {
   align-items: center;
 }
 
+.quality-report dt,
 .metric-list dt {
   color: var(--muted);
   text-align: start;
 }
 
+.quality-report dd,
 .metric-list dd {
   margin: 0;
   font-weight: 700;

@@ -41,6 +41,7 @@ async function run() {
     assert.match(compressPayload.result.optimizedPrompt, /Do not remove hard constraints/);
     assert.equal(typeof compressPayload.result.estimatedTokenReduction.estimatedReductionPercent, "number");
     assert.ok(Array.isArray(compressPayload.result.intentionallyDropped));
+    assert.equal(typeof compressPayload.result.qualityReport.removedRepetition, "boolean");
 
     const productPrompt = `
 Build a polished internal operations dashboard for a logistics team.
@@ -76,6 +77,7 @@ Output should include implementation plan and delivery risks.
     );
     assert.ok(Array.isArray(productPayload.result.compressedOrMerged));
     assert.ok(Array.isArray(productPayload.result.intentionallyDropped));
+    assert.equal(productPayload.result.qualityReport.compressionLevel, "Balanced");
 
     console.log("Smoke test passed.");
   } finally {
