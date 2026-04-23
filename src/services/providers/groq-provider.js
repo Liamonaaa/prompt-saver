@@ -66,7 +66,7 @@ async function compress({ prompt, mode, analysisSummary, reviewHint }) {
         ],
         response_format: { type: "json_object" },
         temperature: 0.15,
-        max_tokens: 16384,
+        max_tokens: 6000,
       }),
       signal: controller.signal,
     });

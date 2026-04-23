@@ -371,7 +371,7 @@ async function callGroq(prompt, mode) {
       messages: buildGroqMessages(prompt, mode),
       response_format: { type: "json_object" },
       temperature: 0.15,
-      max_tokens: 16384,
+      max_tokens: 6000,
     }),
   });
 
