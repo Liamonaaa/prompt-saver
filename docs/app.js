@@ -6,30 +6,30 @@ const STORAGE_KEYS = {
   model: "prompt-saver:gemini-model",
 };
 
-const SAMPLE_PROMPT = `Build a production-ready internal dashboard for incident response.
+const SAMPLE_PROMPT = `בנו לוח בקרה פנימי מוכן לפרודקשן לטיפול באירועי תקלות.
 
-This is not a toy. Do not simplify the data model.
-Do not remove audit logging.
-Do not remove role-based access control.
-Do not change the API contract unless absolutely necessary.
-The product must ship with accessible keyboard navigation.
-The product must ship with accessible keyboard navigation.
-Preserve existing webhook retry semantics.
-Preserve existing webhook retry semantics.
-Preserve all hard constraints, especially auditability and access control.
-Never turn this into a marketing landing page.
-Never turn this into a marketing landing page.
+זה לא דמו. אין לפשט את מודל הנתונים.
+אין להסיר audit logging.
+אין להסיר role-based access control.
+אין לשנות את חוזה ה־API אלא אם אין ברירה.
+המוצר חייב לכלול ניווט מלא במקלדת.
+המוצר חייב לכלול ניווט מלא במקלדת.
+יש לשמר את לוגיקת ה־retry הקיימת של ה־webhooks.
+יש לשמר את לוגיקת ה־retry הקיימת של ה־webhooks.
+יש לשמר את כל האילוצים הקשיחים, במיוחד auditability והרשאות גישה.
+אסור להפוך את זה לעמוד שיווקי.
+אסור להפוך את זה לעמוד שיווקי.
 
-Requirements:
-- React frontend is allowed, but keep the architecture simple.
-- Must support dark mode.
-- Must support dark mode.
-- Backend must remain Node.js.
-- Output should include implementation plan, risks, and final deliverables.
-- Keep the tone direct and technical.
-- Keep the tone direct and technical.
+דרישות:
+- מותר להשתמש ב־React בצד הלקוח, אבל לשמור על ארכיטקטורה פשוטה.
+- חובה לתמוך במצב כהה.
+- חובה לתמוך במצב כהה.
+- ה־backend חייב להישאר על Node.js.
+- הפלט צריך לכלול תוכנית מימוש, סיכונים ותוצרים סופיים.
+- לשמור על טון ישיר וטכני.
+- לשמור על טון ישיר וטכני.
 
-If anything seems ambiguous but could be critical, keep it instead of dropping it.`;
+אם משהו נראה מעורפל אבל עלול להיות קריטי, עדיף להשאיר אותו מאשר להסיר אותו.`;
 
 const PROMPT_SCHEMA = {
   type: "OBJECT",
@@ -82,6 +82,12 @@ const MODE_GUIDANCE = {
   balanced: "Compress firmly, merge duplicates, and shorten wording without risking constraints.",
   aggressive:
     "Compress hard where safe, but still keep any requirement that could affect correctness, safety, or deliverables.",
+};
+
+const MODE_LABELS = {
+  safe: "שמרני",
+  balanced: "מאוזן",
+  aggressive: "אגרסיבי",
 };
 
 const config = window.PROMPT_SAVER_CONFIG;
@@ -145,7 +151,7 @@ function buildReductionEstimate(originalPrompt, optimizedPrompt) {
 }
 
 function formatCounts(text) {
-  return `${text.length.toLocaleString()} chars · ${countWords(text).toLocaleString()} words`;
+  return `${text.length.toLocaleString("he-IL")} תווים · ${countWords(text).toLocaleString("he-IL")} מילים`;
 }
 
 function setStatus(message, tone = "") {
@@ -189,9 +195,9 @@ function renderCompare(result) {
   if (!result) {
     elements.compareMetrics.classList.add("empty-card");
     elements.compareMetrics.innerHTML = `
-      <div><dt>Original</dt><dd>0 tokens est.</dd></div>
-      <div><dt>Optimized</dt><dd>0 tokens est.</dd></div>
-      <div><dt>Reduction</dt><dd>0%</dd></div>
+      <div><dt>מקור</dt><dd>הערכה: 0 טוקנים</dd></div>
+      <div><dt>מקוצר</dt><dd>הערכה: 0 טוקנים</dd></div>
+      <div><dt>חיסכון</dt><dd>0%</dd></div>
     `;
     return;
   }
@@ -199,9 +205,9 @@ function renderCompare(result) {
   const estimate = result.estimatedTokenReduction;
   elements.compareMetrics.classList.remove("empty-card");
   elements.compareMetrics.innerHTML = `
-    <div><dt>Original</dt><dd>${estimate.estimatedOriginalTokens.toLocaleString()} tokens est.</dd></div>
-    <div><dt>Optimized</dt><dd>${estimate.estimatedOptimizedTokens.toLocaleString()} tokens est.</dd></div>
-    <div><dt>Reduction</dt><dd>${estimate.estimatedReductionPercent}%</dd></div>
+    <div><dt>מקור</dt><dd>הערכה: ${estimate.estimatedOriginalTokens.toLocaleString("he-IL")} טוקנים</dd></div>
+    <div><dt>מקוצר</dt><dd>הערכה: ${estimate.estimatedOptimizedTokens.toLocaleString("he-IL")} טוקנים</dd></div>
+    <div><dt>חיסכון</dt><dd>${estimate.estimatedReductionPercent}%</dd></div>
   `;
 }
 
@@ -220,8 +226,8 @@ function renderResult(result) {
   elements.downloadButton.disabled = !result?.optimizedPrompt;
   renderCounts();
   renderCompare(result);
-  renderList(elements.preservedList, result?.preservedConstraints, "No constraints captured yet.");
-  renderList(elements.compressedList, result?.compressedOrMerged, "No compression notes yet.");
+  renderList(elements.preservedList, result?.preservedConstraints, "עדיין לא זוהו אילוצים.");
+  renderList(elements.compressedList, result?.compressedOrMerged, "עדיין אין פירוט על הדחיסה.");
 }
 
 function persistEditorState() {
@@ -232,19 +238,19 @@ function persistEditorState() {
 function saveKeyState() {
   localStorage.setItem(STORAGE_KEYS.apiKey, elements.apiKeyInput.value.trim());
   localStorage.setItem(STORAGE_KEYS.model, elements.modelInput.value.trim());
-  setStatus("Gemini key and model saved in this browser.", "success");
+  setStatus("המפתח והמודל נשמרו בדפדפן הזה.", "success");
 }
 
 function clearKeyState() {
   elements.apiKeyInput.value = "";
   localStorage.removeItem(STORAGE_KEYS.apiKey);
-  setStatus("Saved Gemini key removed from this browser.", "success");
+  setStatus("המפתח השמור נמחק מהדפדפן הזה.", "success");
 }
 
 function setTheme(theme) {
   const isDark = theme === "dark";
   document.body.classList.toggle("dark", isDark);
-  elements.themeToggle.textContent = isDark ? "Light mode" : "Dark mode";
+  elements.themeToggle.textContent = isDark ? "מצב בהיר" : "מצב כהה";
   localStorage.setItem(STORAGE_KEYS.theme, isDark ? "dark" : "light");
 }
 
@@ -314,22 +320,22 @@ function mapGeminiError(status, payload) {
   const message = JSON.stringify(payload || {}).toLowerCase();
 
   if (status === 401 || status === 403 || message.includes("api key")) {
-    return "Gemini rejected the API key. Check the key and try again.";
+    return "Gemini דחה את מפתח ה־API. בדקו את המפתח ונסו שוב.";
   }
 
   if (status === 404 || message.includes("not found") || message.includes("unsupported model")) {
-    return "The configured Gemini model is unavailable. Try the fallback Flash model.";
+    return "מודל Gemini שהוגדר אינו זמין. נסו מודל Flash חלופי.";
   }
 
   if (status === 429 || message.includes("rate limit") || message.includes("resource_exhausted")) {
-    return "Gemini is rate limiting this request right now. Wait a moment and try again.";
+    return "Gemini מגביל כרגע את קצב הבקשות. נסו שוב בעוד רגע.";
   }
 
   if (status >= 500) {
-    return "Gemini is currently unavailable. Try again in a moment.";
+    return "Gemini לא זמין כרגע. נסו שוב בעוד רגע.";
   }
 
-  return payload?.error?.message || "Gemini request failed.";
+  return payload?.error?.message || "הבקשה אל Gemini נכשלה.";
 }
 
 async function callGemini(prompt, mode) {
@@ -374,7 +380,7 @@ async function callGemini(prompt, mode) {
     throw lastError;
   }
 
-  throw lastError || new Error("Gemini request failed.");
+  throw lastError || new Error("הבקשה אל Gemini נכשלה.");
 }
 
 async function compressPrompt() {
@@ -386,12 +392,12 @@ async function compressPrompt() {
   }
 
   if (!apiKey) {
-    setStatus("Enter a Gemini API key before compressing.", "error");
+    setStatus("צריך להזין מפתח Gemini לפני שמקצרים.", "error");
     return;
   }
 
   setLoading(true);
-  setStatus("Compressing prompt with Gemini...", "");
+  setStatus("מקצר את הפרומפט עם Gemini...", "");
 
   try {
     const result = await callGemini(prompt, state.mode);
@@ -399,12 +405,12 @@ async function compressPrompt() {
     renderResult(result);
 
     const suffix = result.usedFallbackModel
-      ? ` using fallback model ${result.selectedModel}.`
-      : ` using ${result.selectedModel}.`;
+      ? ` נעשה שימוש במודל גיבוי: ${result.selectedModel}.`
+      : ` נעשה שימוש במודל ${result.selectedModel}.`;
 
-    setStatus(`Compression complete${suffix}`, "success");
+    setStatus(`הקיצור הושלם.${suffix}`, "success");
   } catch (error) {
-    setStatus(error.message || "Compression failed.", "error");
+    setStatus(error.message || "הקיצור נכשל.", "error");
   } finally {
     setLoading(false);
   }
@@ -417,9 +423,9 @@ async function copyOutput() {
 
   try {
     await navigator.clipboard.writeText(elements.promptOutput.value);
-    setStatus("Optimized prompt copied to clipboard.", "success");
+    setStatus("הפרומפט המקוצר הועתק ללוח.", "success");
   } catch (_error) {
-    setStatus("Clipboard copy failed. Select and copy manually.", "error");
+    setStatus("ההעתקה נכשלה. אפשר לסמן ולהעתיק ידנית.", "error");
   }
 }
 
@@ -432,10 +438,10 @@ function downloadOutput() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "optimized-prompt.txt";
+  link.download = "prompt-saver-hebrew.txt";
   link.click();
   URL.revokeObjectURL(url);
-  setStatus("Optimized prompt downloaded.", "success");
+  setStatus("הפרומפט המקוצר ירד כקובץ.", "success");
 }
 
 function clearAll() {
@@ -443,7 +449,7 @@ function clearAll() {
   renderResult(null);
   persistEditorState();
   setLoading(false);
-  setStatus("Cleared. Paste another prompt when ready.");
+  setStatus("נוקה. אפשר להדביק פרומפט חדש.");
 }
 
 function initialize() {
@@ -465,6 +471,7 @@ function initialize() {
   });
 
   elements.modeButtons.forEach((button) => {
+    button.textContent = MODE_LABELS[button.dataset.mode] || button.textContent;
     button.addEventListener("click", () => {
       state.mode = button.dataset.mode;
       persistEditorState();
@@ -478,7 +485,7 @@ function initialize() {
     persistEditorState();
     renderCounts();
     elements.compressButton.disabled = false;
-    setStatus("Loaded sample prompt. Review it and compress when ready.");
+    setStatus("נטענה דוגמה. אפשר לעבור עליה ולקצר כשמוכנים.");
   });
   elements.clearButton.addEventListener("click", clearAll);
   elements.copyButton.addEventListener("click", copyOutput);

@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="he" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Prompt Saver</title>
+    <title>שומר הפרומפטים</title>
     <meta
       name="description"
-      content="Compress long prompts for coding agents while preserving hard constraints."
+      content="קיצור פרומפטים ארוכים לסוכני קוד, בלי לאבד אילוצים קריטיים."
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
@@ -14,15 +14,15 @@
     <div class="page-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Prompt optimizer for coding agents</p>
-          <h1>Prompt Saver</h1>
+          <p class="eyebrow">אופטימיזציה לפרומפטים לסוכני קוד</p>
+          <h1>שומר הפרומפטים</h1>
           <p class="subhead">
-            Shorten prompts for Codex and Claude Code without losing the real task goal, hard
-            constraints, or do-not-touch rules.
+            מקצרים פרומפטים ל־Codex ול־Claude Code בלי לאבד את מטרת המשימה, אילוצים קשיחים
+            או הוראות שאסור לשנות.
           </p>
         </div>
-        <button id="theme-toggle" class="ghost-button" type="button" aria-label="Toggle theme">
-          Dark mode
+        <button id="theme-toggle" class="ghost-button" type="button" aria-label="החלפת ערכת נושא">
+          מצב כהה
         </button>
       </header>
 
@@ -30,90 +30,92 @@
         <section class="panel panel-input">
           <div class="panel-header">
             <div>
-              <h2>Original prompt</h2>
-              <p>Paste the full prompt. Prompt Saver removes repetition, not intent.</p>
+              <h2>הפרומפט המקורי</h2>
+              <p>מדביקים את הפרומפט המלא. המערכת מקצרת ניסוח, לא משנה כוונה.</p>
             </div>
-            <div class="counts" id="input-counts">0 chars · 0 words</div>
+            <div class="counts" id="input-counts">0 תווים · 0 מילים</div>
           </div>
 
-          <label class="field-label" for="prompt-input">Prompt</label>
+          <label class="field-label" for="prompt-input">פרומפט</label>
           <textarea
             id="prompt-input"
             class="prompt-area"
-            placeholder="Paste a long prompt with repeated constraints, warnings, and instructions..."
+            dir="auto"
+            placeholder="הדביקו כאן פרומפט ארוך עם אילוצים, אזהרות והוראות שחוזרים על עצמם..."
           ></textarea>
 
           <div class="toolbar">
-            <div class="mode-picker" role="radiogroup" aria-label="Compression mode">
-              <button class="mode-button active" type="button" data-mode="safe">Safe</button>
-              <button class="mode-button" type="button" data-mode="balanced">Balanced</button>
-              <button class="mode-button" type="button" data-mode="aggressive">Aggressive</button>
+            <div class="mode-picker" role="radiogroup" aria-label="מצב דחיסה">
+              <button class="mode-button active" type="button" data-mode="safe">שמרני</button>
+              <button class="mode-button" type="button" data-mode="balanced">מאוזן</button>
+              <button class="mode-button" type="button" data-mode="aggressive">אגרסיבי</button>
             </div>
 
             <div class="actions">
-              <button id="sample-button" class="ghost-button" type="button">Use sample prompt</button>
-              <button id="clear-button" class="ghost-button" type="button">Clear</button>
-              <button id="compress-button" class="primary-button" type="button">Compress</button>
+              <button id="sample-button" class="ghost-button" type="button">השתמשו בדוגמה</button>
+              <button id="clear-button" class="ghost-button" type="button">ניקוי</button>
+              <button id="compress-button" class="primary-button" type="button">קצרו פרומפט</button>
             </div>
           </div>
 
           <p id="status-message" class="status-message" aria-live="polite">
-            Paste a prompt, choose a mode, and compress it.
+            הדביקו פרומפט, בחרו מצב וקצרו אותו.
           </p>
         </section>
 
         <section class="panel panel-output">
           <div class="panel-header">
             <div>
-              <h2>Optimized prompt</h2>
-              <p>Directly usable output, plus constraint notes and compression deltas.</p>
+              <h2>הפרומפט המקוצר</h2>
+              <p>פלט מוכן לשימוש, יחד עם אילוצים שנשמרו והסבר מה קוצר.</p>
             </div>
-            <div class="counts" id="output-counts">0 chars · 0 words</div>
+            <div class="counts" id="output-counts">0 תווים · 0 מילים</div>
           </div>
 
-          <label class="field-label" for="prompt-output">Compressed prompt</label>
+          <label class="field-label" for="prompt-output">פרומפט מקוצר</label>
           <textarea
             id="prompt-output"
             class="prompt-area prompt-output"
-            placeholder="Your optimized prompt will appear here."
+            dir="auto"
+            placeholder="כאן יופיע הפרומפט המקוצר."
             readonly
           ></textarea>
 
           <div class="output-actions">
-            <button id="copy-button" class="ghost-button" type="button" disabled>Copy</button>
-            <button id="download-button" class="ghost-button" type="button" disabled>Download .txt</button>
+            <button id="copy-button" class="ghost-button" type="button" disabled>העתקה</button>
+            <button id="download-button" class="ghost-button" type="button" disabled>הורדה כ־txt.</button>
           </div>
 
           <div class="results-grid">
             <article class="result-card">
-              <h3>Compare</h3>
+              <h3>השוואה</h3>
               <dl id="compare-metrics" class="metric-list empty-card">
                 <div>
-                  <dt>Original</dt>
-                  <dd>0 tokens est.</dd>
+                  <dt>מקור</dt>
+                  <dd>הערכה: 0 טוקנים</dd>
                 </div>
                 <div>
-                  <dt>Optimized</dt>
-                  <dd>0 tokens est.</dd>
+                  <dt>מקוצר</dt>
+                  <dd>הערכה: 0 טוקנים</dd>
                 </div>
                 <div>
-                  <dt>Reduction</dt>
+                  <dt>חיסכון</dt>
                   <dd>0%</dd>
                 </div>
               </dl>
             </article>
 
             <article class="result-card">
-              <h3>Preserved critical constraints</h3>
+              <h3>אילוצים קריטיים שנשמרו</h3>
               <ul id="preserved-list" class="result-list empty-card">
-                <li>No result yet.</li>
+                <li>עדיין אין תוצאה.</li>
               </ul>
             </article>
 
             <article class="result-card">
-              <h3>Compressed or merged</h3>
+              <h3>מה קוצר או אוחד</h3>
               <ul id="compressed-list" class="result-list empty-card">
-                <li>No result yet.</li>
+                <li>עדיין אין תוצאה.</li>
               </ul>
             </article>
           </div>

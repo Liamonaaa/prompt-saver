@@ -4,30 +4,36 @@ const STORAGE_KEYS = {
   theme: "prompt-saver:theme",
 };
 
-const SAMPLE_PROMPT = `Build a production-ready internal dashboard for incident response.
+const SAMPLE_PROMPT = `בנו לוח בקרה פנימי מוכן לפרודקשן לטיפול באירועי תקלות.
 
-This is not a toy. Do not simplify the data model.
-Do not remove audit logging.
-Do not remove role-based access control.
-Do not change the API contract unless absolutely necessary.
-The product must ship with accessible keyboard navigation.
-The product must ship with accessible keyboard navigation.
-Preserve existing webhook retry semantics.
-Preserve existing webhook retry semantics.
-Preserve all hard constraints, especially auditability and access control.
-Never turn this into a marketing landing page.
-Never turn this into a marketing landing page.
+זה לא דמו. אין לפשט את מודל הנתונים.
+אין להסיר audit logging.
+אין להסיר role-based access control.
+אין לשנות את חוזה ה־API אלא אם אין ברירה.
+המוצר חייב לכלול ניווט מלא במקלדת.
+המוצר חייב לכלול ניווט מלא במקלדת.
+יש לשמר את לוגיקת ה־retry הקיימת של ה־webhooks.
+יש לשמר את לוגיקת ה־retry הקיימת של ה־webhooks.
+יש לשמר את כל האילוצים הקשיחים, במיוחד auditability והרשאות גישה.
+אסור להפוך את זה לעמוד שיווקי.
+אסור להפוך את זה לעמוד שיווקי.
 
-Requirements:
-- React frontend is allowed, but keep the architecture simple.
-- Must support dark mode.
-- Must support dark mode.
-- Backend must remain Node.js.
-- Output should include implementation plan, risks, and final deliverables.
-- Keep the tone direct and technical.
-- Keep the tone direct and technical.
+דרישות:
+- מותר להשתמש ב־React בצד הלקוח, אבל לשמור על ארכיטקטורה פשוטה.
+- חובה לתמוך במצב כהה.
+- חובה לתמוך במצב כהה.
+- ה־backend חייב להישאר על Node.js.
+- הפלט צריך לכלול תוכנית מימוש, סיכונים ותוצרים סופיים.
+- לשמור על טון ישיר וטכני.
+- לשמור על טון ישיר וטכני.
 
-If anything seems ambiguous but could be critical, keep it instead of dropping it.`;
+אם משהו נראה מעורפל אבל עלול להיות קריטי, עדיף להשאיר אותו מאשר להסיר אותו.`;
+
+const MODE_LABELS = {
+  safe: "שמרני",
+  balanced: "מאוזן",
+  aggressive: "אגרסיבי",
+};
 
 const state = {
   mode: "safe",
@@ -59,7 +65,7 @@ function countWords(text) {
 }
 
 function formatCounts(text) {
-  return `${text.length.toLocaleString()} chars · ${countWords(text).toLocaleString()} words`;
+  return `${text.length.toLocaleString("he-IL")} תווים · ${countWords(text).toLocaleString("he-IL")} מילים`;
 }
 
 function setStatus(message, tone = "") {
@@ -104,9 +110,9 @@ function renderCompare(result) {
   if (!result) {
     elements.compareMetrics.classList.add("empty-card");
     elements.compareMetrics.innerHTML = `
-      <div><dt>Original</dt><dd>0 tokens est.</dd></div>
-      <div><dt>Optimized</dt><dd>0 tokens est.</dd></div>
-      <div><dt>Reduction</dt><dd>0%</dd></div>
+      <div><dt>מקור</dt><dd>הערכה: 0 טוקנים</dd></div>
+      <div><dt>מקוצר</dt><dd>הערכה: 0 טוקנים</dd></div>
+      <div><dt>חיסכון</dt><dd>0%</dd></div>
     `;
     return;
   }
@@ -114,9 +120,9 @@ function renderCompare(result) {
   const estimate = result.estimatedTokenReduction;
   elements.compareMetrics.classList.remove("empty-card");
   elements.compareMetrics.innerHTML = `
-    <div><dt>Original</dt><dd>${estimate.estimatedOriginalTokens.toLocaleString()} tokens est.</dd></div>
-    <div><dt>Optimized</dt><dd>${estimate.estimatedOptimizedTokens.toLocaleString()} tokens est.</dd></div>
-    <div><dt>Reduction</dt><dd>${estimate.estimatedReductionPercent}%</dd></div>
+    <div><dt>מקור</dt><dd>הערכה: ${estimate.estimatedOriginalTokens.toLocaleString("he-IL")} טוקנים</dd></div>
+    <div><dt>מקוצר</dt><dd>הערכה: ${estimate.estimatedOptimizedTokens.toLocaleString("he-IL")} טוקנים</dd></div>
+    <div><dt>חיסכון</dt><dd>${estimate.estimatedReductionPercent}%</dd></div>
   `;
 }
 
@@ -135,8 +141,8 @@ function renderResult(result) {
 
   renderCounts();
   renderCompare(result);
-  renderList(elements.preservedList, result?.preservedConstraints, "No constraints captured yet.");
-  renderList(elements.compressedList, result?.compressedOrMerged, "No compression notes yet.");
+  renderList(elements.preservedList, result?.preservedConstraints, "עדיין לא זוהו אילוצים.");
+  renderList(elements.compressedList, result?.compressedOrMerged, "עדיין אין פירוט על הדחיסה.");
 }
 
 function persistInput() {
@@ -147,7 +153,7 @@ function persistInput() {
 function setTheme(theme) {
   const isDark = theme === "dark";
   document.body.classList.toggle("dark", isDark);
-  elements.themeToggle.textContent = isDark ? "Light mode" : "Dark mode";
+  elements.themeToggle.textContent = isDark ? "מצב בהיר" : "מצב כהה";
   localStorage.setItem(STORAGE_KEYS.theme, isDark ? "dark" : "light");
 }
 
@@ -159,7 +165,7 @@ async function compressPrompt() {
   }
 
   setLoading(true);
-  setStatus("Compressing prompt with Gemini...", "");
+  setStatus("מקצר את הפרומפט עם Gemini...", "");
 
   try {
     const response = await fetch("/api/compress", {
@@ -176,18 +182,18 @@ async function compressPrompt() {
     const payload = await response.json();
 
     if (!response.ok || !payload.ok) {
-      throw new Error(payload?.error?.message || "Compression failed.");
+      throw new Error(payload?.error?.message || "הקיצור נכשל.");
     }
 
     renderResult(payload.result);
 
     const modelBadge = payload.result.usedFallbackModel
-      ? ` using fallback model ${payload.result.selectedModel}.`
-      : ` using ${payload.result.selectedModel}.`;
+      ? ` נעשה שימוש במודל גיבוי: ${payload.result.selectedModel}.`
+      : ` נעשה שימוש במודל ${payload.result.selectedModel}.`;
 
-    setStatus(`Compression complete${modelBadge}`, "success");
+    setStatus(`הקיצור הושלם.${modelBadge}`, "success");
   } catch (error) {
-    setStatus(error.message || "Compression failed.", "error");
+    setStatus(error.message || "הקיצור נכשל.", "error");
   } finally {
     setLoading(false);
   }
@@ -200,9 +206,9 @@ async function copyOutput() {
 
   try {
     await navigator.clipboard.writeText(elements.promptOutput.value);
-    setStatus("Optimized prompt copied to clipboard.", "success");
+    setStatus("הפרומפט המקוצר הועתק ללוח.", "success");
   } catch (_error) {
-    setStatus("Clipboard copy failed. Select and copy manually.", "error");
+    setStatus("ההעתקה נכשלה. אפשר לסמן ולהעתיק ידנית.", "error");
   }
 }
 
@@ -215,10 +221,10 @@ function downloadOutput() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "optimized-prompt.txt";
+  link.download = "prompt-saver-hebrew.txt";
   link.click();
   URL.revokeObjectURL(url);
-  setStatus("Optimized prompt downloaded.", "success");
+  setStatus("הפרומפט המקוצר ירד כקובץ.", "success");
 }
 
 function clearAll() {
@@ -226,7 +232,7 @@ function clearAll() {
   renderResult(null);
   persistInput();
   setLoading(false);
-  setStatus("Cleared. Paste another prompt when ready.");
+  setStatus("נוקה. אפשר להדביק פרומפט חדש.");
 }
 
 function initialize() {
@@ -246,6 +252,7 @@ function initialize() {
   });
 
   elements.modeButtons.forEach((button) => {
+    button.textContent = MODE_LABELS[button.dataset.mode] || button.textContent;
     button.addEventListener("click", () => {
       state.mode = button.dataset.mode;
       persistInput();
@@ -259,7 +266,7 @@ function initialize() {
     persistInput();
     renderCounts();
     elements.compressButton.disabled = false;
-    setStatus("Loaded sample prompt. Review it and compress when ready.");
+    setStatus("נטענה דוגמה. אפשר לעבור עליה ולקצר כשמוכנים.");
   });
   elements.clearButton.addEventListener("click", clearAll);
   elements.copyButton.addEventListener("click", copyOutput);
