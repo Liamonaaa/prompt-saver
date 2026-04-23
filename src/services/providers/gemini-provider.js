@@ -34,7 +34,7 @@ function buildConfigForModel(modelName) {
     responseSchema: RESPONSE_SCHEMA,
     temperature: 0.15,
     topP: 0.9,
-    maxOutputTokens: 4096,
+    maxOutputTokens: 16384,
   };
 
   if (supportsThinkingBudget(modelName)) {

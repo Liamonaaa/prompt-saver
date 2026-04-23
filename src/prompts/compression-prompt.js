@@ -154,7 +154,12 @@ function parseCompressionResponse(response) {
         ? response.text()
         : "";
 
-  const parsed = response?.parsed || JSON.parse(rawText);
+  let parsed;
+  try {
+    parsed = response?.parsed || JSON.parse(rawText);
+  } catch {
+    throw new Error("Gemini returned a truncated response. Try a shorter prompt or use Aggressive mode.");
+  }
 
   if (!parsed?.optimizedPrompt || typeof parsed.optimizedPrompt !== "string") {
     throw new Error("Gemini returned an invalid compression payload.");

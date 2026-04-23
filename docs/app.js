@@ -303,7 +303,7 @@ function buildRequestBody(prompt, mode) {
     generationConfig: {
       temperature: 0.15,
       topP: 0.9,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 16384,
       responseMimeType: "application/json",
       responseJsonSchema: PROMPT_SCHEMA,
       thinkingConfig: {
@@ -346,7 +346,12 @@ function parseGeminiResponse(payload) {
     throw new Error("ג׳מיני החזיר תגובה ריקה.");
   }
 
-  const parsed = JSON.parse(text);
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("ג׳מיני החזיר תגובה חתוכה. נסו פרומפט קצר יותר או מצב דחיסה אגרסיבי.");
+  }
 
   if (!parsed?.optimizedPrompt) {
     throw new Error("ג׳מיני החזיר מבנה תשובה לא תקין.");
