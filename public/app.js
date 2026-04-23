@@ -165,7 +165,7 @@ async function compressPrompt() {
   }
 
   setLoading(true);
-  setStatus("מקצר את הפרומפט עם Gemini...", "");
+  setStatus("מקצר את הפרומפט עם ג׳מיני...", "");
 
   try {
     const response = await fetch("/api/compress", {

@@ -296,13 +296,13 @@ function parseGeminiResponse(payload) {
   const text = candidate?.content?.parts?.map((part) => part.text || "").join("").trim();
 
   if (!text) {
-    throw new Error("Gemini returned an empty response.");
+    throw new Error("ג׳מיני החזיר תגובה ריקה.");
   }
 
   const parsed = JSON.parse(text);
 
   if (!parsed?.optimizedPrompt) {
-    throw new Error("Gemini returned an invalid optimization payload.");
+    throw new Error("ג׳מיני החזיר מבנה תשובה לא תקין.");
   }
 
   return {
@@ -320,22 +320,22 @@ function mapGeminiError(status, payload) {
   const message = JSON.stringify(payload || {}).toLowerCase();
 
   if (status === 401 || status === 403 || message.includes("api key")) {
-    return "Gemini דחה את מפתח ה־API. בדקו את המפתח ונסו שוב.";
+    return "ג׳מיני דחה את מפתח ה־API. בדקו את המפתח ונסו שוב.";
   }
 
   if (status === 404 || message.includes("not found") || message.includes("unsupported model")) {
-    return "מודל Gemini שהוגדר אינו זמין. נסו מודל Flash חלופי.";
+    return "מודל ג׳מיני שהוגדר אינו זמין. נסו מודל Flash חלופי.";
   }
 
   if (status === 429 || message.includes("rate limit") || message.includes("resource_exhausted")) {
-    return "Gemini מגביל כרגע את קצב הבקשות. נסו שוב בעוד רגע.";
+    return "ג׳מיני מגביל כרגע את קצב הבקשות. נסו שוב בעוד רגע.";
   }
 
   if (status >= 500) {
-    return "Gemini לא זמין כרגע. נסו שוב בעוד רגע.";
+    return "ג׳מיני לא זמין כרגע. נסו שוב בעוד רגע.";
   }
 
-  return payload?.error?.message || "הבקשה אל Gemini נכשלה.";
+  return payload?.error?.message || "הבקשה אל ג׳מיני נכשלה.";
 }
 
 async function callGemini(prompt, mode) {
@@ -380,7 +380,7 @@ async function callGemini(prompt, mode) {
     throw lastError;
   }
 
-  throw lastError || new Error("הבקשה אל Gemini נכשלה.");
+  throw lastError || new Error("הבקשה אל ג׳מיני נכשלה.");
 }
 
 async function compressPrompt() {
@@ -392,12 +392,12 @@ async function compressPrompt() {
   }
 
   if (!apiKey) {
-    setStatus("צריך להזין מפתח Gemini לפני שמקצרים.", "error");
+    setStatus("צריך להזין מפתח ג׳מיני לפני שמקצרים.", "error");
     return;
   }
 
   setLoading(true);
-  setStatus("מקצר את הפרומפט עם Gemini...", "");
+  setStatus("מקצר את הפרומפט עם ג׳מיני...", "");
 
   try {
     const result = await callGemini(prompt, state.mode);
