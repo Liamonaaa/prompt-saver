@@ -228,7 +228,8 @@ function renderQualityReport(result) {
 function setLoading(isLoading) {
   state.loading = isLoading;
   const disabled = isLoading || !elements.promptInput.value.trim();
-  elements.compressButton.disabled = disabled;
+  elements.compressButton.disabled = isLoading;
+  elements.compressButton.classList.toggle("is-loading", isLoading);
   elements.sampleButton.disabled = isLoading;
   elements.clearButton.disabled = isLoading;
 }
@@ -518,3 +519,102 @@ function initialize() {
 }
 
 initialize();
+
+/* ── GSAP Animations ───────────────────────────────────────── */
+(function initAnimations() {
+  if (typeof gsap === "undefined") return;
+
+  const mm = gsap.matchMedia();
+
+  mm.add(
+    {
+      motion: "(prefers-reduced-motion: no-preference)",
+    },
+    function (ctx) {
+      var isMotion = ctx.conditions.motion;
+      if (!isMotion) return;
+
+      /* Entrance timeline */
+      var tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+
+      tl.from('[data-anim="header"]', {
+        y: -32,
+        autoAlpha: 0,
+        duration: 0.7,
+      })
+        .from(
+          '[data-anim="panel-1"]',
+          { y: 28, autoAlpha: 0, duration: 0.55 },
+          "-=0.35"
+        )
+        .from(
+          '[data-anim="panel-2"]',
+          { y: 28, autoAlpha: 0, duration: 0.55 },
+          "-=0.4"
+        )
+        .from(
+          '[data-anim="panel-3"]',
+          { y: 28, autoAlpha: 0, duration: 0.55 },
+          "-=0.4"
+        );
+
+      /* Compress button click pulse */
+      elements.compressButton.addEventListener("click", function () {
+        gsap.fromTo(
+          elements.compressButton,
+          { scale: 0.94 },
+          { scale: 1, duration: 0.4, ease: "back.out(2.5)" }
+        );
+      });
+
+      /* Results cards stagger on new result */
+      var origRenderResult = window._renderResultOrig || null;
+
+      function patchRenderResult() {
+        var cards = document.querySelectorAll(".result-card");
+        if (cards.length) {
+          gsap.from(cards, {
+            y: 18,
+            autoAlpha: 0,
+            duration: 0.45,
+            stagger: 0.08,
+            ease: "power2.out",
+          });
+        }
+        var qr = document.getElementById("quality-report");
+        if (qr) {
+          gsap.from(qr, {
+            y: 12,
+            autoAlpha: 0,
+            duration: 0.4,
+            ease: "power2.out",
+          });
+        }
+      }
+
+      /* Wrap renderResult to trigger stagger after DOM update */
+      var _origRenderResult = renderResult;
+      renderResult = function (result) {
+        _origRenderResult(result);
+        if (result && result.optimizedPrompt) {
+          patchRenderResult();
+        }
+      };
+
+      /* Status message fade */
+      var lastStatusText = "";
+      var statusObserver = new MutationObserver(function () {
+        var cur = elements.statusMessage.textContent;
+        if (cur !== lastStatusText) {
+          lastStatusText = cur;
+          gsap.fromTo(
+            elements.statusMessage,
+            { autoAlpha: 0, y: 6 },
+            { autoAlpha: 1, y: 0, duration: 0.3, ease: "power2.out" }
+          );
+        }
+      });
+      statusObserver.observe(elements.statusMessage, { childList: true, characterData: true, subtree: true });
+    }
+  );
+})();

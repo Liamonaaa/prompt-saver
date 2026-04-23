@@ -4,50 +4,55 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>שומר הפרומפטים</title>
-    <meta
-      name="description"
-      content="שומר הפרומפטים ל־GitHub Pages. מקצר פרומפטים בלי לאבד אילוצים קריטיים."
-    />
+    <meta name="description" content="מקצר פרומפטים לסוכני קוד בלי לאבד אילוצים קריטיים." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <div class="noise-layer" aria-hidden="true"></div>
+
     <div class="page-shell">
-      <header class="topbar">
-        <div>
+
+      <header class="topbar" data-anim="header">
+        <div class="hero-text">
           <p class="eyebrow">אופטימיזציה לפרומפטים לסוכני קוד</p>
           <h1>שומר הפרומפטים</h1>
           <p class="subhead">
-            גרסת GitHub Pages. ממשק סטטי עם קריאות ישירות ל־Gemini, עם אותה מטרה: לקצר פרומפטים בלי להפיל אילוצים קשיחים.
+            גרסת GitHub Pages. קריאות ישירות ל־Gemini.
+            מקצר פרומפטים בלי לאבד אילוצים קשיחים.
           </p>
         </div>
-        <button id="theme-toggle" class="ghost-button" type="button" aria-label="החלפת ערכת נושא">
+        <button id="theme-toggle" class="theme-btn ghost-button" type="button" aria-label="החלפת ערכת נושא">
           מצב כהה
         </button>
       </header>
 
-      <section class="panel key-panel">
+      <section class="panel key-panel" data-anim="panel-1" aria-label="הגדרות API">
         <div class="panel-header">
           <div>
             <h2>מפתח Gemini</h2>
             <p>
-              GitHub Pages לא מריץ backend. צריך מפתח Gemini — חינמי ב־<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
+              ממשק סטטי — צריך מפתח משלכם.
+              קבלו אחד חינמי ב<a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a>.
             </p>
           </div>
         </div>
 
         <div class="key-grid">
-          <div>
+          <div class="field-group">
             <label class="field-label" for="api-key-input">מפתח API</label>
             <input
               id="api-key-input"
               class="text-input"
               type="password"
               dir="ltr"
-              placeholder="הדביקו כאן את מפתח ה־Gemini שלכם"
+              placeholder="AIza..."
               autocomplete="off"
             />
           </div>
-          <div>
+          <div class="field-group">
             <label class="field-label" for="model-input">מודל</label>
             <input id="model-input" class="text-input" type="text" dir="ltr" />
           </div>
@@ -61,16 +66,17 @@
         </div>
 
         <p class="status-message warning">
-          מפתחות שנשמרים בדפדפן פחות מאובטחים מהגרסה השרתית. השתמשו במפתח אישי שאתם שולטים בו.
+          מפתחות שנשמרים בדפדפן פחות מאובטחים מגרסה שרתית.
         </p>
       </section>
 
       <main class="layout">
-        <section class="panel panel-input">
+
+        <section class="panel panel-input" data-anim="panel-2" aria-label="פרומפט קלט">
           <div class="panel-header">
             <div>
               <h2>הפרומפט המקורי</h2>
-              <p>מדביקים את הפרומפט המלא. המערכת מקצרת ניסוח, לא משנה כוונה.</p>
+              <p>מדביקים פרומפט ארוך. המערכת מקצרת ניסוח, לא כוונה.</p>
             </div>
             <div class="counts" id="input-counts">0 תווים · 0 מילים</div>
           </div>
@@ -80,7 +86,7 @@
             id="prompt-input"
             class="prompt-area"
             dir="auto"
-            placeholder="הדביקו כאן פרומפט ארוך עם אילוצים, אזהרות והוראות שחוזרים על עצמם..."
+            placeholder="הדביקו כאן פרומפט ארוך עם אילוצים, אזהרות והוראות חוזרות..."
           ></textarea>
 
           <div class="toolbar">
@@ -89,24 +95,26 @@
               <button class="mode-button" type="button" data-mode="balanced">מאוזן</button>
               <button class="mode-button" type="button" data-mode="aggressive">אגרסיבי</button>
             </div>
-
             <div class="actions">
-              <button id="sample-button" class="ghost-button" type="button">השתמשו בדוגמה</button>
+              <button id="sample-button" class="ghost-button" type="button">דוגמה</button>
               <button id="clear-button" class="ghost-button" type="button">ניקוי</button>
-              <button id="compress-button" class="primary-button" type="button">קצרו פרומפט</button>
+              <button id="compress-button" class="primary-button" type="button">
+                <span class="btn-label">קצרו פרומפט</span>
+                <span class="btn-spinner" aria-hidden="true"></span>
+              </button>
             </div>
           </div>
 
           <p id="status-message" class="status-message" aria-live="polite">
-            הדביקו פרומפט, הזינו מפתח Gemini וקצרו אותו.
+            הדביקו פרומפט, הזינו מפתח Gemini וקצרו.
           </p>
         </section>
 
-        <section class="panel panel-output">
+        <section class="panel panel-output" data-anim="panel-3" aria-label="פרומפט פלט">
           <div class="panel-header">
             <div>
               <h2>הפרומפט המקוצר</h2>
-              <p>פלט מוכן לשימוש, יחד עם אילוצים שנשמרו והסבר מה קוצר.</p>
+              <p>פלט מוכן לשימוש עם סיכום מה נשמר ומה הוסר.</p>
             </div>
             <div class="counts" id="output-counts">0 תווים · 0 מילים</div>
           </div>
@@ -122,7 +130,7 @@
 
           <div class="output-actions">
             <button id="copy-button" class="ghost-button" type="button" disabled>העתקה</button>
-            <button id="download-button" class="ghost-button" type="button" disabled>הורדה כ־txt.</button>
+            <button id="download-button" class="ghost-button" type="button" disabled>הורדה כ־txt</button>
           </div>
 
           <dl id="quality-report" class="quality-report empty-card">
@@ -136,18 +144,9 @@
             <article class="result-card">
               <h3>השוואה</h3>
               <dl id="compare-metrics" class="metric-list empty-card">
-                <div>
-                  <dt>מקור</dt>
-                  <dd>הערכה: 0 טוקנים</dd>
-                </div>
-                <div>
-                  <dt>מקוצר</dt>
-                  <dd>הערכה: 0 טוקנים</dd>
-                </div>
-                <div>
-                  <dt>חיסכון</dt>
-                  <dd>0%</dd>
-                </div>
+                <div><dt>מקור</dt><dd>הערכה: 0 טוקנים</dd></div>
+                <div><dt>מקוצר</dt><dd>הערכה: 0 טוקנים</dd></div>
+                <div><dt>חיסכון</dt><dd>0%</dd></div>
               </dl>
             </article>
 
@@ -168,7 +167,7 @@
             <article class="result-card">
               <h3>מה הושמט במכוון</h3>
               <ul id="dropped-list" class="result-list empty-card">
-                <li>עדיין אין תוצאה.</li>
+                <li>לא הושמט דבר מהותי.</li>
               </ul>
             </article>
           </div>
@@ -176,6 +175,7 @@
       </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="./config.js"></script>
     <script src="./app.js" defer></script>
   </body>
