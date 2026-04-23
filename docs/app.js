@@ -2,8 +2,8 @@ const STORAGE_KEYS = {
   prompt: "prompt-saver:last-prompt",
   mode: "prompt-saver:mode",
   theme: "prompt-saver:theme",
-  apiKey: "prompt-saver:gemini-api-key",
-  model: "prompt-saver:gemini-model",
+  apiKey: "prompt-saver:groq-api-key",
+  model: "prompt-saver:groq-model",
 };
 
 const SAMPLE_PROMPT = `בנו לוח בקרה פנימי מוכן לפרודקשן לטיפול באירועי תקלות.
@@ -31,31 +31,6 @@ const SAMPLE_PROMPT = `בנו לוח בקרה פנימי מוכן לפרודקש
 
 אם משהו נראה מעורפל אבל עלול להיות קריטי, עדיף להשאיר אותו מאשר להסיר אותו.`;
 
-const PROMPT_SCHEMA = {
-  type: "object",
-  properties: {
-    optimizedPrompt: { type: "string" },
-    preservedConstraints: {
-      type: "array",
-      items: { type: "string" },
-    },
-    compressedOrMerged: {
-      type: "array",
-      items: { type: "string" },
-    },
-    intentionallyDropped: {
-      type: "array",
-      items: { type: "string" },
-    },
-  },
-  required: ["optimizedPrompt", "preservedConstraints", "compressedOrMerged", "intentionallyDropped"],
-  propertyOrdering: [
-    "optimizedPrompt",
-    "preservedConstraints",
-    "compressedOrMerged",
-    "intentionallyDropped",
-  ],
-};
 
 const SYSTEM_INSTRUCTION = `You are Prompt Saver, a prompt optimization engine for coding agents.
 
@@ -295,27 +270,15 @@ function setTheme(theme) {
   localStorage.setItem(STORAGE_KEYS.theme, isDark ? "dark" : "light");
 }
 
-function buildRequestBody(prompt, mode) {
-  return {
-    systemInstruction: {
-      parts: [{ text: SYSTEM_INSTRUCTION }],
-    },
-    generationConfig: {
-      temperature: 0.15,
-      topP: 0.9,
-      maxOutputTokens: 16384,
-      responseMimeType: "application/json",
-      responseJsonSchema: PROMPT_SCHEMA,
-      thinkingConfig: {
-        thinkingBudget: 0,
-      },
-    },
-    contents: [
-      {
-        parts: [
-          {
-            text: `Compression mode: ${mode}
-Mode guidance: ${MODE_GUIDANCE[mode] || MODE_GUIDANCE.safe}
+const JSON_SCHEMA_INSTRUCTION = `Return your response as a JSON object with exactly these fields:
+- optimizedPrompt: string — the compressed, directly usable prompt
+- preservedConstraints: array of strings — critical constraints that were kept
+- compressedOrMerged: array of strings — what was tightened or combined
+- intentionallyDropped: array of strings — what was safely removed (empty array if nothing was dropped)`.trim();
+
+function buildGroqMessages(prompt, mode) {
+  const userContent = `Compression mode: ${mode}
+Mode guidance: ${MODE_GUIDANCE[mode] || MODE_GUIDANCE.balanced}
 
 Task:
 Transform the input into a shorter prompt for a coding agent.
@@ -330,31 +293,32 @@ Meaning-loss check:
 - If unsure whether something is important, keep it.
 
 Input prompt:
-"""${prompt}"""`,
-          },
-        ],
-      },
-    ],
-  };
+"""${prompt}"""`;
+
+  return [
+    { role: "system", content: `${SYSTEM_INSTRUCTION}
+
+${JSON_SCHEMA_INSTRUCTION}` },
+    { role: "user", content: userContent },
+  ];
 }
 
-function parseGeminiResponse(payload) {
-  const candidate = payload?.candidates?.[0];
-  const text = candidate?.content?.parts?.map((part) => part.text || "").join("").trim();
+function parseGroqResponse(payload) {
+  const text = (payload?.choices?.[0]?.message?.content || "").trim();
 
   if (!text) {
-    throw new Error("ג׳מיני החזיר תגובה ריקה.");
+    throw new Error("Groq החזיר תגובה ריקה.");
   }
 
   let parsed;
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new Error("ג׳מיני החזיר תגובה חתוכה. נסו פרומפט קצר יותר או מצב דחיסה אגרסיבי.");
+    throw new Error("Groq החזיר תגובה חתוכה. נסו פרומפט קצר יותר או מצב דחיסה אגרסיבי.");
   }
 
   if (!parsed?.optimizedPrompt) {
-    throw new Error("ג׳מיני החזיר מבנה תשובה לא תקין.");
+    throw new Error("Groq החזיר מבנה תשובה לא תקין.");
   }
 
   return {
@@ -371,89 +335,59 @@ function parseGeminiResponse(payload) {
   };
 }
 
-function mapGeminiError(status, payload) {
-  const message = JSON.stringify(payload || {}).toLowerCase();
-  const apiMessage = payload?.error?.message;
+function mapGroqError(status, payload) {
+  const apiMessage = payload?.error?.message || "";
+  const lower = apiMessage.toLowerCase();
 
-  if (apiMessage && status >= 400 && status < 500) {
-    return apiMessage;
+  if (status === 401) {
+    return "Groq דחה את מפתח ה־API. בדקו את המפתח ונסו שוב.";
   }
 
-  if (status === 401 || status === 403 || message.includes("api key")) {
-    return "ג׳מיני דחה את מפתח ה־API. בדקו את המפתח ונסו שוב.";
+  if (status === 429 || lower.includes("rate limit") || lower.includes("quota")) {
+    const retryMatch = apiMessage.match(/retry after (\d+)/i);
+    const hint = retryMatch ? ` נסו שוב בעוד ${retryMatch[1]} שניות.` : " נסו שוב בעוד רגע.";
+    return `Groq הגביל את הבקשה.${hint}`;
   }
 
-  if (status === 404 || message.includes("not found") || message.includes("unsupported model")) {
-    return "מודל ג׳מיני שהוגדר אינו זמין. נסו מודל Flash חלופי.";
+  if (status === 503 || lower.includes("overloaded") || lower.includes("unavailable")) {
+    return "Groq עמוס כרגע. נסו שוב בעוד רגע.";
   }
 
-  if (status === 429 || message.includes("rate limit") || message.includes("resource_exhausted") || message.includes("quota exceeded")) {
-    const retryMatch = (apiMessage || "").match(/retry in ([\d.]+)s/i);
-    const retrySec = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : null;
-    const quotaNote = (apiMessage || "").includes("free_tier") ? " הגעתם למגבלת המכסה החינמית." : "";
-    return retrySec
-      ? `ג׳מיני הגביל את הבקשה.${quotaNote} נסו שוב בעוד ${retrySec} שניות.`
-      : `ג׳מיני הגביל את הבקשה.${quotaNote} נסו שוב בעוד רגע.`;
-  }
-
-  if (status === 503 || (apiMessage || "").toLowerCase().includes("high demand") || (apiMessage || "").toLowerCase().includes("overloaded")) {
-    return "ג׳מיני עמוס כרגע. מנסה מודל חלופי או נסו שוב בעוד רגע.";
-  }
-
-  if (status >= 500) {
-    return apiMessage || "ג׳מיני לא זמין כרגע. נסו שוב בעוד רגע.";
-  }
-
-  return apiMessage || "הבקשה אל ג׳מיני נכשלה.";
+  return apiMessage || "הבקשה אל Groq נכשלה.";
 }
 
-async function callGemini(prompt, mode) {
+async function callGroq(prompt, mode) {
   const apiKey = elements.apiKeyInput.value.trim();
-  const selectedModel = elements.modelInput.value.trim() || config.defaultModel;
-  const modelsToTry = [selectedModel, ...config.fallbackModels.filter((model) => model !== selectedModel)];
-  let lastError;
+  const selectedModel = elements.modelInput.value.trim() || config.groq.defaultModel;
 
-  for (let index = 0; index < modelsToTry.length; index += 1) {
-    const modelName = modelsToTry[index];
-    const response = await fetch(`${config.endpointBase}/models/${modelName}:generateContent`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify(buildRequestBody(prompt, mode)),
-    });
+  const response = await fetch(`${config.groq.endpointBase}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: selectedModel,
+      messages: buildGroqMessages(prompt, mode),
+      response_format: { type: "json_object" },
+      temperature: 0.15,
+      max_tokens: 16384,
+    }),
+  });
 
-    const payload = await response.json();
+  const payload = await response.json();
 
-    if (response.ok) {
-      return {
-        ...parseGeminiResponse(payload),
-        selectedModel: modelName,
-        usedFallbackModel: index > 0,
-      };
-    }
-
-    lastError = new Error(mapGeminiError(response.status, payload));
-
-    const rawMessage = JSON.stringify(payload || {}).toLowerCase();
-    const modelUnavailable =
-      response.status === 404 ||
-      response.status === 503 ||
-      rawMessage.includes("unsupported model") ||
-      rawMessage.includes("not found") ||
-      rawMessage.includes("high demand") ||
-      rawMessage.includes("overloaded");
-
-    if (modelUnavailable && index < modelsToTry.length - 1) {
-      continue;
-    }
-
-    throw lastError;
+  if (!response.ok) {
+    throw new Error(mapGroqError(response.status, payload));
   }
 
-  throw lastError || new Error("הבקשה אל ג׳מיני נכשלה.");
+  return {
+    ...parseGroqResponse(payload),
+    selectedModel,
+    usedFallbackModel: false,
+  };
 }
+
 
 async function compressPrompt() {
   const prompt = elements.promptInput.value.trim();
@@ -464,15 +398,15 @@ async function compressPrompt() {
   }
 
   if (!apiKey) {
-    setStatus("צריך להזין מפתח ג׳מיני לפני שמקצרים.", "error");
+    setStatus("צריך להזין מפתח Groq לפני שמקצרים.", "error");
     return;
   }
 
   setLoading(true);
-  setStatus("מקצר את הפרומפט עם ג׳מיני...", "");
+  setStatus("מקצר את הפרומפט עם Groq...", "");
 
   try {
-    const result = await callGemini(prompt, state.mode);
+    const result = await callGroq(prompt, state.mode);
     result.estimatedTokenReduction = buildReductionEstimate(prompt, result.optimizedPrompt);
     result.qualityReport = {
       removedRepetition: Boolean(result.compressedOrMerged?.length),
@@ -533,7 +467,7 @@ function clearAll() {
 function initialize() {
   elements.promptInput.value = localStorage.getItem(STORAGE_KEYS.prompt) || "";
   elements.apiKeyInput.value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
-  elements.modelInput.value = localStorage.getItem(STORAGE_KEYS.model) || config.defaultModel;
+  elements.modelInput.value = localStorage.getItem(STORAGE_KEYS.model) || config.groq.defaultModel;
   state.mode = localStorage.getItem(STORAGE_KEYS.mode) || "balanced";
   setTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
 

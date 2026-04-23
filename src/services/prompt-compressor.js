@@ -8,10 +8,18 @@ const {
   reviewCompressionResult,
 } = require("./compression-analyzer");
 const geminiProvider = require("./providers/gemini-provider");
+const groqProvider = require("./providers/groq-provider");
 const mockProvider = require("./providers/mock-provider");
 
 async function compressPrompt({ prompt, mode }) {
-  const provider = geminiConfig.useMockProvider ? mockProvider : geminiProvider;
+  let provider;
+  if (geminiConfig.useMockProvider) {
+    provider = mockProvider;
+  } else if (process.env.GROQ_API_KEY) {
+    provider = groqProvider;
+  } else {
+    provider = geminiProvider;
+  }
   const analysis = analyzePrompt(prompt);
   const analysisSummary = buildAnalysisSummary(analysis);
   let result = await provider.compress({ prompt, mode, analysisSummary });
