@@ -112,6 +112,7 @@ const elements = {
   compareMetrics: document.getElementById("compare-metrics"),
   preservedList: document.getElementById("preserved-list"),
   compressedList: document.getElementById("compressed-list"),
+  droppedList: document.getElementById("dropped-list"),
   modeButtons: [...document.querySelectorAll(".mode-button")],
   themeToggle: document.getElementById("theme-toggle"),
   apiKeyInput: document.getElementById("api-key-input"),
@@ -228,6 +229,7 @@ function renderResult(result) {
   renderCompare(result);
   renderList(elements.preservedList, result?.preservedConstraints, "עדיין לא זוהו אילוצים.");
   renderList(elements.compressedList, result?.compressedOrMerged, "עדיין אין פירוט על הדחיסה.");
+  renderList(elements.droppedList, result?.intentionallyDropped, "לא הושמט שום דבר מהותי.");
 }
 
 function persistEditorState() {

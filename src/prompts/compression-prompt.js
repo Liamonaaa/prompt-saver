@@ -4,60 +4,100 @@ const RESPONSE_SCHEMA = {
     optimizedPrompt: {
       type: "string",
       description:
-        "A directly usable prompt for Codex or Claude Code that preserves all critical requirements.",
+        "A directly usable prompt for Codex or Claude Code that preserves the task goal and critical requirements.",
     },
     preservedConstraints: {
       type: "array",
-      description: "Critical constraints that were explicitly preserved.",
+      description: "Critical constraints, product requirements, or do-not-change instructions that were preserved.",
       items: { type: "string" },
     },
     compressedOrMerged: {
       type: "array",
-      description: "Areas where repeated or filler content was merged or shortened.",
+      description: "Redundant, repetitive, or overly long areas that were merged or tightened.",
+      items: { type: "string" },
+    },
+    intentionallyDropped: {
+      type: "array",
+      description:
+        "Items intentionally dropped because they were clearly redundant, repetitive, or non-material. Use an empty array if nothing meaningful was dropped.",
       items: { type: "string" },
     },
   },
-  required: ["optimizedPrompt", "preservedConstraints", "compressedOrMerged"],
-  propertyOrdering: ["optimizedPrompt", "preservedConstraints", "compressedOrMerged"],
+  required: [
+    "optimizedPrompt",
+    "preservedConstraints",
+    "compressedOrMerged",
+    "intentionallyDropped",
+  ],
+  propertyOrdering: [
+    "optimizedPrompt",
+    "preservedConstraints",
+    "compressedOrMerged",
+    "intentionallyDropped",
+  ],
 };
 
 const SYSTEM_INSTRUCTION = `
 You are Prompt Saver, a prompt optimization engine for coding agents.
 
 This is not generic summarization.
-Your job is to compress prompts while preserving the task's real intent and every critical constraint.
+Your job is to produce the shortest safe prompt, not the shortest possible prompt.
 
-Non-negotiable rules:
+Primary objective:
+- Reduce token-heavy repetition while preserving the task's real intent, implementation guidance, product direction, and critical constraints.
+
+Core rules:
 - Preserve the core task goal.
-- Preserve all hard constraints.
-- Preserve all do-not-touch rules.
-- Preserve technical limitations, output requirements, language requirements, and safety-critical instructions.
-- If you are unsure whether something is critical, keep it.
-- Never silently drop constraints that could change behavior or break the result.
-- Merge duplicate instructions when possible, but do not weaken them.
-- Remove repetition, filler wording, repeated warnings, and redundant examples unless the example is essential to preserve behavior.
-- Keep the optimized prompt directly usable in Codex or Claude Code.
-- Do not explain the prompt at length.
-- Do not write a summary of the original text.
-- Do not add new requirements that were not present in the source.
+- Preserve all hard constraints, do-not-touch rules, technical limits, output requirements, language requirements, and safety-critical instructions.
+- Preserve instructions about what the product should feel like or what it must not become when those instructions materially affect the result.
+- If an instruction shapes product quality, UX quality, implementation direction, or evaluation criteria, treat it as important unless it is clearly redundant.
+- If you are unsure whether something is important, keep it.
+- Never silently weaken a constraint when merging wording.
+- Never rewrite the prompt into a high-level summary.
+- Never add new requirements that were not present in the source.
 
-Compression priority:
-1. Core task goal
+Priority layers:
+1. Core goal
 2. Hard constraints
-3. What must not be changed
+3. Non-negotiable product and UX requirements
 4. Technical constraints
 5. Output and delivery requirements
-6. Secondary design preferences
-7. Nice-to-have details
+6. Secondary preferences
+7. Repetitive or compressible wording
 
-Return valid JSON matching the provided schema.
+Important preservation rule:
+- Do not treat descriptive product and UX guidance as fluff just because it is qualitative.
+- Instructions such as "do not make this feel generic", "not just responsive", "premium or polished feel", "intentional mobile UX", "refined micro-interactions", "operationally efficient dashboard", "app-like feel", and similar product-shaping guidance should usually survive in compressed form.
+- Preserve distinctions like "mobile-first", "not just a responsive shrink", "admin UX should feel operationally efficient", and "interaction details matter" when they materially affect implementation quality.
+
+Compression guidance:
+- Remove duplicate warnings, repeated examples, filler wording, and verbose restatements.
+- Merge repeated instructions into one stronger and clearer instruction.
+- Keep wording compact, but do not flatten meaningful nuance.
+- Prefer concise preservation over deletion for important UX or product guidance.
+- Preserve "what this should not become" instructions when they prevent generic or degraded output.
+
+Output requirements:
+- Return valid JSON matching the provided schema.
+- "preservedConstraints" should list the most important things that were kept.
+- "compressedOrMerged" should say what was tightened or combined.
+- "intentionallyDropped" should list only content that was clearly safe to remove. If nothing meaningful was dropped, return an empty array.
 `.trim();
 
 const MODE_GUIDANCE = {
-  safe: "Favor maximal preservation. Remove obvious repetition and fluff only.",
-  balanced: "Compress firmly, merge duplicates, and shorten wording without risking constraints.",
-  aggressive:
-    "Compress hard where safe, but still keep any requirement that could affect correctness, safety, or deliverables.",
+  safe: `
+Preserve nuance aggressively.
+Keep product-feel, UX quality, and implementation-shaping guidance unless it is obviously repetitive.
+Prefer a slightly longer result over losing meaningful intent.
+  `.trim(),
+  balanced: `
+Reduce repetition firmly, but keep any requirement that changes the expected product quality, UX quality, implementation direction, or review standard.
+This mode should optimize for shortest safe prompt, not shortest output.
+  `.trim(),
+  aggressive: `
+Maximize reduction more boldly, but still preserve anything that materially affects correctness, product feel, UX expectations, implementation quality, or delivery requirements.
+If a qualitative instruction could change the final product meaningfully, keep it in compact form.
+  `.trim(),
 };
 
 function buildCompressionContents(prompt, mode) {
@@ -70,12 +110,26 @@ Mode guidance: ${MODE_GUIDANCE[selectedMode]}
 Task:
 Transform the input into a shorter prompt for a coding agent.
 Preserve every critical instruction.
+Preserve important product and UX guidance when it shapes the final result.
 Reduce token-heavy repetition.
 Do not turn it into a generic summary.
+
+Evaluation checklist before removing anything:
+- Does it affect the real task goal?
+- Is it a hard constraint or technical limitation?
+- Does it shape product feel, UX expectations, mobile behavior, animation quality, dashboard usability, or implementation direction?
+- Does it describe what the result must not become?
+- Would removing it make the result more generic, lower quality, or easier to misinterpret?
+
+If yes or maybe, keep it.
 
 Input prompt:
 """${prompt}"""
   `.trim();
+}
+
+function normalizeList(value, maxItems = 10) {
+  return Array.isArray(value) ? value.filter(Boolean).slice(0, maxItems) : [];
 }
 
 function parseCompressionResponse(response) {
@@ -94,12 +148,9 @@ function parseCompressionResponse(response) {
 
   return {
     optimizedPrompt: parsed.optimizedPrompt.trim(),
-    preservedConstraints: Array.isArray(parsed.preservedConstraints)
-      ? parsed.preservedConstraints.filter(Boolean).slice(0, 8)
-      : [],
-    compressedOrMerged: Array.isArray(parsed.compressedOrMerged)
-      ? parsed.compressedOrMerged.filter(Boolean).slice(0, 8)
-      : [],
+    preservedConstraints: normalizeList(parsed.preservedConstraints),
+    compressedOrMerged: normalizeList(parsed.compressedOrMerged),
+    intentionallyDropped: normalizeList(parsed.intentionallyDropped),
   };
 }
 

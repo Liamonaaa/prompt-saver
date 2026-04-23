@@ -19,7 +19,11 @@ function extractConstraintLines(prompt) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .filter((line) => /must|never|do not|don't|cannot|can't|required|preserve|keep/i.test(line));
+    .filter((line) =>
+      /must|never|do not|don't|cannot|can't|required|preserve|keep|premium|polished|mobile-first|responsive|generic|dashboard|interaction|ux|app-like/i.test(
+        line,
+      ),
+    );
 }
 
 async function compress({ prompt, mode }) {
@@ -38,6 +42,7 @@ async function compress({ prompt, mode }) {
       `Merged duplicate lines in ${mode} mode.`,
       "Removed repeated warnings and filler phrasing for smoke-test output.",
     ],
+    intentionallyDropped: [],
     selectedModel: "mock-gemini-provider",
     usedFallbackModel: false,
   };
