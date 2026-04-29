@@ -1,5 +1,5 @@
 window.PROMPT_SAVER_CONFIG = {
-  defaultModel: "gemini-2.0-flash",
-  fallbackModels: ["gemini-1.5-flash"],
-  endpointBase: "https://generativelanguage.googleapis.com/v1beta",
+  defaultModel: "gemma4:latest",
+  fallbackModels: [],
+  endpointBase: "http://127.0.0.1:11434",
 };

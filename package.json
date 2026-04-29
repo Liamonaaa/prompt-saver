@@ -1,7 +1,7 @@
 {
   "name": "prompt-saver",
   "version": "1.0.0",
-  "description": "Prompt Saver is a Gemini-powered prompt optimizer for coding agents.",
+  "description": "Prompt Saver is a Gemma-powered prompt optimizer for coding agents.",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -10,6 +10,8 @@
     "smoke-test": "node scripts/smoke-test.js"
   },
   "keywords": [
+    "gemma",
+    "ollama",
     "gemini",
     "prompt-optimization",
     "express",

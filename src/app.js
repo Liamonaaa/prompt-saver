@@ -2,7 +2,7 @@ const path = require("path");
 const express = require("express");
 const compressionRouter = require("./routes/compress");
 const { AppError } = require("./lib/app-error");
-const { geminiConfig } = require("./config/gemini");
+const { getActiveProviderInfo } = require("./services/prompt-compressor");
 
 function createApp() {
   const app = express();
@@ -13,11 +13,13 @@ function createApp() {
   app.use(express.static(publicDir));
 
   app.get("/api/health", (_req, res) => {
+    const providerInfo = getActiveProviderInfo();
+
     res.json({
       ok: true,
-      provider: geminiConfig.useMockProvider ? "mock" : "gemini",
-      configuredModel: geminiConfig.defaultModel,
-      fallbackModels: geminiConfig.fallbackModels,
+      provider: providerInfo.providerName,
+      configuredModel: providerInfo.configuredModel,
+      fallbackModels: providerInfo.fallbackModels,
     });
   });
 

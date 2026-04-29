@@ -2,8 +2,8 @@ const STORAGE_KEYS = {
   prompt: "prompt-saver:last-prompt",
   mode: "prompt-saver:mode",
   theme: "prompt-saver:theme",
-  apiKey: "prompt-saver:gemini-api-key",
-  model: "prompt-saver:gemini-model",
+  apiKey: "prompt-saver:ollama-endpoint",
+  model: "prompt-saver:gemma-model",
 };
 
 const SAMPLE_PROMPT = `בנו לוח בקרה פנימי מוכן לפרודקשן לטיפול באירועי תקלות.
@@ -296,7 +296,7 @@ function robustParseJson(text) {
   return null;
 }
 
-function buildGeminiRequest(prompt, mode) {
+function buildGemmaRequest(prompt, mode) {
   const modeGuidance = MODE_GUIDANCE[mode] || MODE_GUIDANCE.balanced;
   const lines = [
     "Compression mode: " + mode,
@@ -312,27 +312,31 @@ function buildGeminiRequest(prompt, mode) {
     '"""',
   ];
   return {
-    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-    generationConfig: {
+    messages: [
+      {
+        role: "system",
+        content:
+          SYSTEM_INSTRUCTION +
+          "\n\nReturn valid JSON with optimizedPrompt, preservedConstraints, compressedOrMerged, and intentionallyDropped.",
+      },
+      { role: "user", content: lines.join("\n") },
+    ],
+    stream: false,
+    format: "json",
+    options: {
       temperature: 0.15,
-      topP: 0.9,
-      maxOutputTokens: 8192,
-      responseMimeType: "application/json",
-      responseJsonSchema: PROMPT_SCHEMA,
-      thinkingConfig: { thinkingBudget: 0 },
+      top_p: 0.9,
+      num_predict: 8192,
     },
-    contents: [{ parts: [{ text: lines.join("\n") }] }],
   };
 }
 
-function parseGeminiResponse(payload) {
-  const candidate = payload && payload.candidates && payload.candidates[0];
-  const parts = candidate && candidate.content && candidate.content.parts;
-  const text = parts ? parts.map(function(p) { return p.text || ""; }).join("").trim() : "";
+function parseGemmaResponse(payload) {
+  const text = ((payload && payload.message && payload.message.content) || payload.response || "").trim();
 
-  if (!text) throw new Error("ג׳מיני החזיר תגובה ריקה.");
+  if (!text) throw new Error("Gemma returned an empty response.");
   const parsed = robustParseJson(text);
-  if (!parsed || !parsed.optimizedPrompt) throw new Error("ג׳מיני החזיר מבנה לא תקין. נסו שוב.");
+  if (!parsed || !parsed.optimizedPrompt) throw new Error("Gemma returned invalid JSON. Try again.");
 
   return {
     optimizedPrompt: parsed.optimizedPrompt.trim(),
@@ -342,11 +346,14 @@ function parseGeminiResponse(payload) {
   };
 }
 
-function mapGeminiError(status, payload) {
-  const apiMessage = (payload && payload.error && payload.error.message) || "";
-  const lower = apiMessage.toLowerCase();
-  if (status === 401 || status === 403 || lower.includes("api key")) {
-    return "ג׳מיני דחה את מפתח ה־API. בדקו את המפתח ב־aistudio.google.com/apikey ונסו שוב.";
+function mapGemmaError(status, payload, model) {
+  const apiMessage = (payload && payload.error && (payload.error.message || payload.error)) || "";
+  const lower = String(apiMessage).toLowerCase();
+  if (status === 404 || lower.includes("not found")) {
+    return "Gemma model is not available locally. Run: ollama pull " + model;
+  }
+  if (status === 401 || status === 403 || lower.includes("permission")) {
+    return "Ollama rejected the request. Check the local endpoint and model.";
   }
   if (status === 429 || lower.includes("quota") || lower.includes("rate limit") || lower.includes("resource_exhausted")) {
     const retryMatch = apiMessage.match(/retry in ([\d.]+)s/i);
@@ -359,11 +366,11 @@ function mapGeminiError(status, payload) {
   if (status === 503 || lower.includes("high demand") || lower.includes("overloaded")) {
     return "ג׳מיני עמוס כרגע. נסו שוב בעוד רגע.";
   }
-  return apiMessage || "הבקשה אל ג׳מיני נכשלה.";
+  return apiMessage || "The request to local Gemma failed. Make sure Ollama is running.";
 }
 
-async function callGemini(prompt, mode) {
-  const apiKey = elements.apiKeyInput.value.trim();
+async function callGemma(prompt, mode) {
+  const endpointBase = (elements.apiKeyInput.value.trim() || config.endpointBase).replace(/\/$/, "");
   const userModel = elements.modelInput.value.trim() || config.defaultModel;
   const modelsToTry = [userModel].concat(config.fallbackModels || []).filter(function(m, i, arr) {
     return m && arr.indexOf(m) === i;
@@ -373,22 +380,22 @@ async function callGemini(prompt, mode) {
 
   for (let i = 0; i < modelsToTry.length; i++) {
     const model = modelsToTry[i];
-    const response = await fetch(config.endpointBase + "/models/" + model + ":generateContent", {
+    const request = Object.assign({ model }, buildGemmaRequest(prompt, mode));
+    const response = await fetch(endpointBase + "/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify(buildGeminiRequest(prompt, mode)),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
     });
 
     const payload = await response.json();
 
     if (response.ok) {
-      return Object.assign({}, parseGeminiResponse(payload), { selectedModel: model, usedFallbackModel: i > 0 });
+      return Object.assign({}, parseGemmaResponse(payload), { selectedModel: model, usedFallbackModel: i > 0 });
     }
 
-    lastError = new Error(mapGeminiError(response.status, payload));
+    lastError = new Error(mapGemmaError(response.status, payload, model));
     const rawLower = JSON.stringify(payload || {}).toLowerCase();
-    const tryFallback = response.status === 404 || response.status === 503
-      || rawLower.includes("not found") || rawLower.includes("high demand") || rawLower.includes("overloaded");
+    const tryFallback = response.status === 404 || response.status === 503 || rawLower.includes("not found");
 
     if (tryFallback && i < modelsToTry.length - 1) continue;
     throw lastError;
@@ -400,22 +407,16 @@ async function callGemini(prompt, mode) {
 
 async function compressPrompt() {
   const prompt = elements.promptInput.value.trim();
-  const apiKey = elements.apiKeyInput.value.trim();
 
   if (!prompt || state.loading) {
     return;
   }
 
-  if (!apiKey) {
-    setStatus("צריך להזין מפתח Gemini לפני שמקצרים.", "error");
-    return;
-  }
-
   setLoading(true);
-  setStatus("מקצר את הפרומפט עם Groq...", "");
+  setStatus("מקצר את הפרומפט עם Gemma מקומי...", "");
 
   try {
-    const result = await callGemini(prompt, state.mode);
+    const result = await callGemma(prompt, state.mode);
     result.estimatedTokenReduction = buildReductionEstimate(prompt, result.optimizedPrompt);
     result.qualityReport = {
       removedRepetition: Boolean(result.compressedOrMerged?.length),
@@ -475,7 +476,7 @@ function clearAll() {
 
 function initialize() {
   elements.promptInput.value = localStorage.getItem(STORAGE_KEYS.prompt) || "";
-  elements.apiKeyInput.value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
+  elements.apiKeyInput.value = localStorage.getItem(STORAGE_KEYS.apiKey) || config.endpointBase;
   elements.modelInput.value = localStorage.getItem(STORAGE_KEYS.model) || config.defaultModel;
   state.mode = localStorage.getItem(STORAGE_KEYS.mode) || "balanced";
   setTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");

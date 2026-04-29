@@ -171,5 +171,6 @@ module.exports = {
   SYSTEM_INSTRUCTION,
   buildCompressionContents,
   buildSimpleCompressionContents,
+  normalizeList,
   parseCompressionResponse,
 };

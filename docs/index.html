@@ -20,7 +20,7 @@
           <p class="eyebrow">אופטימיזציה לפרומפטים לסוכני קוד</p>
           <h1>שומר הפרומפטים</h1>
           <p class="subhead">
-            גרסת GitHub Pages. קריאות ישירות ל־Gemini.
+            גרסת GitHub Pages. קריאות ישירות ל־Gemma מקומי דרך Ollama.
             מקצר פרומפטים בלי לאבד אילוצים קשיחים.
           </p>
         </div>
@@ -32,23 +32,22 @@
       <section class="panel key-panel" data-anim="panel-1" aria-label="הגדרות API">
         <div class="panel-header">
           <div>
-            <h2>מפתח Gemini</h2>
+            <h2>Ollama מקומי</h2>
             <p>
-              ממשק סטטי — צריך מפתח משלכם.
-              קבלו אחד חינמי ב<a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a>.
+              ממשק סטטי — צריך Ollama פועל על המחשב עם המודל gemma4:latest.
             </p>
           </div>
         </div>
 
         <div class="key-grid">
           <div class="field-group">
-            <label class="field-label" for="api-key-input">מפתח API</label>
+            <label class="field-label" for="api-key-input">כתובת Ollama</label>
             <input
               id="api-key-input"
               class="text-input"
               type="password"
               dir="ltr"
-              placeholder="AIza..."
+              placeholder="http://127.0.0.1:11434"
               autocomplete="off"
             />
           </div>
@@ -106,7 +105,7 @@
           </div>
 
           <p id="status-message" class="status-message" aria-live="polite">
-            הדביקו פרומפט, הזינו מפתח Gemini וקצרו.
+            הדביקו פרומפט, ודאו ש־Ollama רץ, וקצרו.
           </p>
         </section>
 
