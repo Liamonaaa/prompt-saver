@@ -102,7 +102,11 @@ function detectTags(text) {
     tags.push("hard_constraint");
   }
 
-  if (/(return|output|deliverable|format|section|include|final answer|plan|risks?|deliverables?|numbered)/i.test(text)) {
+  if (/\bavoid\b/i.test(text) && !tags.includes("hard_constraint")) {
+    tags.push("hard_constraint");
+  }
+
+  if (/^\s*\d+[.)]\s/.test(text) || /(return|output|deliverable|format|section|include|final answer|plan|risks?|deliverables?|numbered)/i.test(text)) {
     tags.push("output_requirement");
   }
 

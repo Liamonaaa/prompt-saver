@@ -11,9 +11,11 @@ const {
 const JSON_SCHEMA_INSTRUCTION = `
 Return your response as a JSON object with exactly these fields:
 - optimizedPrompt: string - the compressed, directly usable prompt
-- preservedConstraints: array of strings - critical constraints that were kept
-- compressedOrMerged: array of strings - what was tightened or combined
-- intentionallyDropped: array of strings - what was safely removed
+- preservedConstraints: array of short strings - critical constraints that were kept
+- compressedOrMerged: array of short strings - what was tightened or combined
+- intentionallyDropped: array of short strings - what was safely removed
+Do not use markdown fences. Do not include prose outside JSON.
+Keep arrays concise. Escape all quotes inside strings.
 `.trim();
 
 function normalizeGemmaError(error) {
@@ -106,8 +108,94 @@ async function callGemmaRaw(messages) {
 
 function extractResult(payload) {
   const rawText = payload?.message?.content || payload?.response || "";
-  const parsed = robustParseJson(rawText);
+  const parsed = robustParseJson(rawText) || parseLooseGemmaJson(rawText);
   return { parsed, rawText };
+}
+
+function parseLooseGemmaJson(rawText) {
+  if (!rawText || !rawText.includes("optimizedPrompt")) {
+    return null;
+  }
+
+  const optimizedPrompt = extractJsonStringValue(rawText, "optimizedPrompt");
+
+  if (!optimizedPrompt) {
+    return null;
+  }
+
+  return {
+    optimizedPrompt,
+    preservedConstraints: extractJsonStringArray(rawText, "preservedConstraints"),
+    compressedOrMerged: extractJsonStringArray(rawText, "compressedOrMerged"),
+    intentionallyDropped: extractJsonStringArray(rawText, "intentionallyDropped"),
+  };
+}
+
+function extractJsonStringValue(rawText, key) {
+  const keyIndex = rawText.indexOf(`"${key}"`);
+
+  if (keyIndex === -1) {
+    return "";
+  }
+
+  const colonIndex = rawText.indexOf(":", keyIndex);
+  const quoteIndex = rawText.indexOf('"', colonIndex + 1);
+
+  if (colonIndex === -1 || quoteIndex === -1) {
+    return "";
+  }
+
+  let escaped = false;
+  let value = "";
+
+  for (let index = quoteIndex + 1; index < rawText.length; index += 1) {
+    const char = rawText[index];
+
+    if (escaped) {
+      value += char === "n" ? "\n" : char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"' && /[,}\]\r\n]/.test(rawText[index + 1] || "")) {
+      return value.trim();
+    }
+
+    value += char;
+  }
+
+  return value.trim();
+}
+
+function extractJsonStringArray(rawText, key) {
+  const keyIndex = rawText.indexOf(`"${key}"`);
+
+  if (keyIndex === -1) {
+    return [];
+  }
+
+  const start = rawText.indexOf("[", keyIndex);
+  const end = rawText.indexOf("]", start + 1);
+
+  if (start === -1 || end === -1) {
+    return [];
+  }
+
+  const values = [];
+  const itemPattern = /"((?:[^"\\]|\\.)*)"/g;
+  const arrayText = rawText.slice(start + 1, end);
+  let match;
+
+  while ((match = itemPattern.exec(arrayText))) {
+    values.push(match[1].replace(/\\"/g, '"').replace(/\\n/g, "\n").trim());
+  }
+
+  return values.filter(Boolean);
 }
 
 function buildResult(parsed, extra = {}) {
@@ -154,4 +242,9 @@ async function compress({ prompt, mode, analysisSummary, reviewHint }) {
   };
 }
 
-module.exports = { compress };
+module.exports = {
+  compress,
+  _private: {
+    parseLooseGemmaJson,
+  },
+};
