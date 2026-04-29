@@ -184,6 +184,7 @@ function setTheme(theme) {
 
 async function compressPrompt() {
   const prompt = elements.promptInput.value.trim();
+  let progressTimers = [];
 
   if (!prompt || state.loading) {
     return;
@@ -191,6 +192,11 @@ async function compressPrompt() {
 
   setLoading(true);
   setStatus("מקצר פרומפט...", "");
+  progressTimers = [
+    setTimeout(() => setStatus("Gemma 4 מעבד את הפרומפט. בפרומפטים ארוכים זה יכול לקחת דקה או שתיים...", ""), 8000),
+    setTimeout(() => setStatus("עדיין עובד מול Gemma 4 המקומי. לא לסגור את הדף בזמן העיבוד.", ""), 30000),
+    setTimeout(() => setStatus("הבקשה עדיין רצה. Gemma 4 איטי יותר בפרומפטים ארוכים, אבל השרת עדיין ממתין לתשובה.", ""), 75000),
+  ];
 
   try {
     const response = await fetch("/api/compress", {
@@ -224,6 +230,7 @@ async function compressPrompt() {
   } catch (error) {
     setStatus(error.message || "הקיצור נכשל.", "error");
   } finally {
+    progressTimers.forEach(clearTimeout);
     setLoading(false);
   }
 }

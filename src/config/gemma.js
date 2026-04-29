@@ -1,6 +1,6 @@
 const DEFAULT_MODEL = "gemma4:latest";
 const DEFAULT_API_URL = "http://127.0.0.1:11434/api/chat";
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 180_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
 
 const gemmaConfig = {

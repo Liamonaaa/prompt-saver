@@ -255,13 +255,13 @@ function persistEditorState() {
 function saveKeyState() {
   localStorage.setItem(STORAGE_KEYS.apiKey, elements.apiKeyInput.value.trim());
   localStorage.setItem(STORAGE_KEYS.model, elements.modelInput.value.trim());
-  setStatus("המפתח והמודל נשמרו בדפדפן הזה.", "success");
+  setStatus("הגדרות Ollama והמודל נשמרו בדפדפן הזה.", "success");
 }
 
 function clearKeyState() {
   elements.apiKeyInput.value = "";
   localStorage.removeItem(STORAGE_KEYS.apiKey);
-  setStatus("המפתח השמור נמחק מהדפדפן הזה.", "success");
+  setStatus("הגדרת Ollama המקומית נמחקה מהדפדפן הזה.", "success");
 }
 
 function setTheme(theme) {
@@ -407,6 +407,7 @@ async function callGemma(prompt, mode) {
 
 async function compressPrompt() {
   const prompt = elements.promptInput.value.trim();
+  let progressTimers = [];
 
   if (!prompt || state.loading) {
     return;
@@ -414,6 +415,11 @@ async function compressPrompt() {
 
   setLoading(true);
   setStatus("מקצר את הפרומפט עם Gemma מקומי...", "");
+  progressTimers = [
+    setTimeout(() => setStatus("Gemma 4 מעבד את הפרומפט. בפרומפטים ארוכים זה יכול לקחת דקה או שתיים...", ""), 8000),
+    setTimeout(() => setStatus("עדיין עובד מול Gemma 4 המקומי. לא לסגור את הדף בזמן העיבוד.", ""), 30000),
+    setTimeout(() => setStatus("הבקשה עדיין רצה. Gemma 4 איטי יותר בפרומפטים ארוכים, אבל הדפדפן עדיין ממתין לתשובה.", ""), 75000),
+  ];
 
   try {
     const result = await callGemma(prompt, state.mode);
@@ -434,6 +440,7 @@ async function compressPrompt() {
   } catch (error) {
     setStatus(error.message || "הקיצור נכשל.", "error");
   } finally {
+    progressTimers.forEach(clearTimeout);
     setLoading(false);
   }
 }
